@@ -1,3 +1,46 @@
-.st-external-statusbar-panel {
-  padding: 12px;
+#st-esg-launcher.selected {
+  filter: brightness(1.15);
+  outline: 1px solid var(--SmartThemeBorderColor);
+}
+
+.st-esg-panel {
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.st-esg-panel-hidden {
+  display: none !important;
+}
+
+.st-esg-panel-header,
+.st-esg-panel-title,
+.st-esg-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.st-esg-panel-header {
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.st-esg-panel-title {
+  font-weight: 700;
+}
+
+.st-esg-panel-body label {
+  display: block;
+  margin-top: 0.75rem;
+}
+
+.st-esg-actions {
+  flex-wrap: wrap;
+  margin: 0.75rem 0;
+}
+
+.st-esg-status {
+  display: block;
+  opacity: 0.75;
+  margin-top: 0.5rem;
 }
