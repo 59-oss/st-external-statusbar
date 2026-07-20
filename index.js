@@ -268,6 +268,10 @@ function togglePanel(forceOpen) {
   const panel = $('#st-external-statusbar-panel');
   if (!panel.length) return;
   const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : panel.hasClass('st-esg-panel-hidden');
+  if (shouldOpen) {
+    document.body.appendChild(panel[0]);
+    panel.css('z-index', '2147483647');
+  }
   panel.toggleClass('st-esg-panel-hidden', !shouldOpen);
   $('#st-esg-menu-button').toggleClass('selected', shouldOpen);
   $('#st-esg-ball').toggleClass('selected', shouldOpen);
