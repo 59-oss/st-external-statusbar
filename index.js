@@ -264,13 +264,27 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function ensurePanelPortal() {
+  let portal = document.getElementById('st-esg-portal-root');
+  if (!portal) {
+    portal = document.createElement('div');
+    portal.id = 'st-esg-portal-root';
+    document.documentElement.appendChild(portal);
+  }
+  return portal;
+}
+
 function togglePanel(forceOpen) {
   const panel = $('#st-external-statusbar-panel');
   if (!panel.length) return;
   const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : panel.hasClass('st-esg-panel-hidden');
   if (shouldOpen) {
-    document.body.appendChild(panel[0]);
-    panel.css('z-index', '2147483647');
+    ensurePanelPortal().appendChild(panel[0]);
+    panel.css({
+      position: 'fixed',
+      inset: '0',
+      zIndex: '2147483647',
+    });
   }
   panel.toggleClass('st-esg-panel-hidden', !shouldOpen);
   $('#st-esg-menu-button').toggleClass('selected', shouldOpen);
