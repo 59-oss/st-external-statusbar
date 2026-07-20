@@ -1,6 +1,7 @@
 import { getContext } from '../../../st-context.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
+const EXTENSION_VERSION = '0.2.9';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 
@@ -264,25 +265,16 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function ensurePanelPortal() {
-  let portal = document.getElementById('st-esg-portal-root');
-  if (!portal) {
-    portal = document.createElement('div');
-    portal.id = 'st-esg-portal-root';
-    document.documentElement.appendChild(portal);
-  }
-  return portal;
-}
-
 function togglePanel(forceOpen) {
   const panel = $('#st-external-statusbar-panel');
   if (!panel.length) return;
   const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : panel.hasClass('st-esg-panel-hidden');
   if (shouldOpen) {
-    ensurePanelPortal().appendChild(panel[0]);
+    document.body.appendChild(panel[0]);
     panel.css({
       position: 'fixed',
       inset: '0',
+      display: 'flex',
       zIndex: '2147483647',
     });
   }
@@ -736,7 +728,7 @@ function loadStylesheet() {
   const link = document.createElement('link');
   link.id = `${EXTENSION_ID}-style`;
   link.rel = 'stylesheet';
-  link.href = new URL('./style.css', import.meta.url).href;
+  link.href = new URL(`./style.css?ver=${EXTENSION_VERSION}`, import.meta.url).href;
   document.head.appendChild(link);
 }
 
