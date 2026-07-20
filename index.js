@@ -61,7 +61,15 @@ function addCandidate(candidates, source, scope, name, content) {
   if (!clean) return;
   const key = `${source}::${scope}::${name}::${clean.slice(0, 200)}`;
   if (candidates.some((item) => item.key === key)) return;
-  candidates.push({ key, source, scope, name: name || '未命名候选', content: clean });
+  candidates.push({ key, source, scope, group: source, name: name || '未命名候选', content: clean });
+}
+
+function addStructuredCandidate(candidates, group, source, scope, name, content, meta = '') {
+  const clean = textOf(content);
+  if (!clean) return;
+  const key = `${group}::${source}::${scope}::${name}::${clean.slice(0, 200)}`;
+  if (candidates.some((item) => item.key === key)) return;
+  candidates.push({ key, group, source, scope, name: name || '未命名条目', content: clean, meta });
 }
 
 function getLatestAssistantMessage(chat) {
@@ -343,7 +351,7 @@ function renderComponentList() {
   const list = $('#st-esg-component-list');
   if (!list.length) return;
   if (!settings.components.length) {
-    list.html('<div class="st-esg-empty">还没有组件。可以手动添加，也可以点“扫描可导入组件”。</div>');
+    list.html('<div class="st-esg-empty">还没有组件。可以手动添加，也可以点“刷新可选来源”，从预设、世界书或角色卡条目里勾选导入。</div>');
     return;
   }
 
@@ -394,35 +402,70 @@ async function scanImportCandidates() {
   const currentChar = context.characters?.[context.characterId];
   const charData = currentChar?.data || currentChar;
 
-  addCandidate(candidates, '角色卡', '角色', '角色描述', charData?.description || currentChar?.description);
-  addCandidate(candidates, '角色卡', '角色', '性格', charData?.personality || currentChar?.personality);
-  addCandidate(candidates, '角色卡', '角色', '场景', charData?.scenario || currentChar?.scenario);
-  addCandidate(candidates, '角色卡', '角色', '开场白', charData?.first_mes || currentChar?.first_mes);
-  addCandidate(candidates, '角色卡', '角色', '示例对话', charData?.mes_example || currentChar?.mes_example);
-  addCandidate(candidates, '角色卡', '角色', '角色系统提示词', charData?.system_prompt);
-  addCandidate(candidates, '角色卡', '角色', '角色后置提示词', charData?.post_history_instructions);
+  addStructuredCandidate(candidates, '角色卡', currentChar?.name || '当前角色', '角色', '角色描述', charData?.description || currentChar?.description);
+  addStructuredCandidate(candidates, '角色卡', currentChar?.name || '当前角色', '角色', '性格', charData?.personality || currentChar?.personality);
+  addStructuredCandidate(candidates, '角色卡', currentChar?.name || '当前角色', '角色', '场景', charData?.scenario || currentChar?.scenario);
+  addStructuredCandidate(candidates, '角色卡', currentChar?.name || '当前角色', '角色', '开场白', charData?.first_mes || currentChar?.first_mes);
+  addStructuredCandidate(candidates, '角色卡', currentChar?.name || '当前角色', '角色', '示例对话', charData?.mes_example || currentChar?.mes_example);
+  addStructuredCandidate(candidates, '角色卡', currentChar?.name || '当前角色', '角色', '角色系统提示词', charData?.system_prompt);
+  addStructuredCandidate(candidates, '角色卡', currentChar?.name || '当前角色', '角色', '角色后置提示词', charData?.post_history_instructions);
 
   const prompts = context.extensionPrompts || {};
   for (const [key, prompt] of Object.entries(prompts)) {
-    if (prompt?.value) addCandidate(candidates, '当前注入提示', '预设', key, prompt.value);
+    if (prompt?.value) {
+      const role = prompt?.role ? `role: ${prompt.role}` : '';
+      const position = Number.isFinite(prompt?.position) ? `position: ${prompt.position}` : '';
+      const depth = Number.isFinite(prompt?.depth) ? `depth: ${prompt.depth}` : '';
+      addStructuredCandidate(candidates, '当前注入提示', '已启用注入', '预设', key, prompt.value, [role, position, depth].filter(Boolean).join(' · '));
+    }
   }
 
-  const sysprompt = context.powerUserSettings?.sysprompt;
-  addCandidate(candidates, '当前预设', '预设', sysprompt?.name || '系统提示词', sysprompt?.content);
-  addCandidate(candidates, '当前预设', '预设', '后置提示词', sysprompt?.post_history);
-  addCandidate(candidates, '用户设定', '全局', '用户人格', context.powerUserSettings?.persona_description);
+  const presetSections = [
+    ['sysprompt', '系统提示词'],
+    ['context', '上下文模板'],
+    ['instruct', '指令模板'],
+    ['reasoning', '思考/Reasoning模板'],
+  ];
+  for (const [managerId, label] of presetSections) {
+    try {
+      const manager = context.getPresetManager?.(managerId);
+      const presetName = manager?.getSelectedPresetName?.();
+      const data = presetName ? manager?.getPresetSettings?.(presetName) : null;
+      if (!data) continue;
+      for (const [field, value] of Object.entries(data)) {
+        if (typeof value === 'string' && value.trim()) {
+          addStructuredCandidate(candidates, `当前预设：${label}`, presetName, '预设', field, value);
+        }
+      }
+    } catch (error) {
+      console.warn(`[${EXTENSION_ID}] 读取预设失败`, managerId, error);
+    }
+  }
 
-  const worldNames = Array.isArray(context.worldNames) ? context.worldNames : [];
+  addStructuredCandidate(candidates, '用户设定', '当前用户', '全局', '用户人格', context.powerUserSettings?.persona_description);
+
+  const worldNames = typeof context.getWorldInfoNames === 'function' ? context.getWorldInfoNames() : [];
   const selectedWorldNames = $('#world_info').val() || [];
-  const namesToLoad = [...new Set([...(Array.isArray(selectedWorldNames) ? selectedWorldNames : [selectedWorldNames]).filter(Boolean), ...worldNames.slice(0, 3)])];
+  const namesToLoad = [...new Set([
+    ...(Array.isArray(selectedWorldNames) ? selectedWorldNames : [selectedWorldNames]).filter(Boolean),
+    ...worldNames,
+  ])];
   if (typeof context.loadWorldInfo === 'function') {
-    for (const worldName of namesToLoad.slice(0, 8)) {
+    for (const worldName of namesToLoad) {
       try {
         const world = await context.loadWorldInfo(worldName);
-        for (const entry of Object.values(world?.entries || {})) {
+        const entries = Object.values(world?.entries || {})
+          .sort((a, b) => Number(a?.order ?? 0) - Number(b?.order ?? 0));
+        for (const entry of entries) {
           if (entry?.content) {
             const title = entry.comment || entry.key?.join?.(', ') || `世界书条目 ${entry.uid ?? ''}`;
-            addCandidate(candidates, `世界书：${worldName}`, '全局', title, entry.content);
+            const meta = [
+              entry.disable ? '禁用' : '启用',
+              entry.constant ? '常驻' : '',
+              Number.isFinite(entry.order) ? `顺序 ${entry.order}` : '',
+              Number.isFinite(entry.depth) ? `深度 ${entry.depth}` : '',
+            ].filter(Boolean).join(' · ');
+            addStructuredCandidate(candidates, `世界书：${worldName}`, worldName, '全局', title, entry.content, meta);
           }
         }
       } catch (error) {
@@ -433,26 +476,54 @@ async function scanImportCandidates() {
 
   importCandidates = candidates;
   renderImportCandidates();
-  setStatus(`已扫描到 ${candidates.length} 个可导入候选。`);
+  setStatus(`已列出 ${candidates.length} 个可导入条目。`);
 }
 
 function renderImportCandidates() {
   const box = $('#st-esg-import-candidates');
   if (!box.length) return;
   if (!importCandidates.length) {
-    box.html('<div class="st-esg-empty">还没有扫描结果。</div>');
+    box.html('<div class="st-esg-empty">还没有可选来源。点击“刷新可选来源”后，会按预设、世界书、角色卡分组列出条目。</div>');
     return;
   }
 
-  box.html(importCandidates.map((item, index) => `
-    <div class="st-esg-import-item" data-index="${index}">
-      <label class="st-esg-checkbox">
-        <input class="st-esg-import-check" type="checkbox" />
-        <span>${escapeHtml(item.name)} · ${escapeHtml(item.scope)} · ${escapeHtml(item.source)}</span>
-      </label>
-      <pre>${escapeHtml(item.content.slice(0, 1200))}</pre>
-    </div>
+  const groups = new Map();
+  importCandidates.forEach((item, index) => {
+    const groupName = item.group || item.source || '其他';
+    if (!groups.has(groupName)) groups.set(groupName, []);
+    groups.get(groupName).push({ ...item, index });
+  });
+
+  box.html([...groups.entries()].map(([groupName, items]) => `
+    <section class="st-esg-import-group">
+      <div class="st-esg-import-group-head">
+        <div>
+          <div class="st-esg-import-group-title">${escapeHtml(groupName)}</div>
+          <div class="st-esg-card-desc">${items.length} 个可选条目</div>
+        </div>
+        <button class="menu_button st-esg-import-group-toggle" type="button">本组全选</button>
+      </div>
+      <div class="st-esg-import-group-list">
+        ${items.map((item) => `
+          <div class="st-esg-import-item" data-index="${item.index}">
+            <label class="st-esg-checkbox">
+              <input class="st-esg-import-check" type="checkbox" />
+              <span>${escapeHtml(item.name)} · ${escapeHtml(item.scope)} · ${escapeHtml(item.source)}</span>
+            </label>
+            ${item.meta ? `<div class="st-esg-import-meta">${escapeHtml(item.meta)}</div>` : ''}
+            <pre>${escapeHtml(item.content.slice(0, 1200))}</pre>
+          </div>
+        `).join('')}
+      </div>
+    </section>
   `).join(''));
+
+  $('.st-esg-import-group-toggle').on('click', function () {
+    const checks = $(this).closest('.st-esg-import-group').find('.st-esg-import-check');
+    const shouldCheck = checks.toArray().some((item) => !$(item).prop('checked'));
+    checks.prop('checked', shouldCheck);
+    $(this).text(shouldCheck ? '取消本组' : '本组全选');
+  });
 }
 
 function importCheckedCandidates() {
@@ -555,7 +626,7 @@ function renderPluginPanel() {
 
           <section class="st-esg-tab-panel" data-tab-panel="components">
             <div class="st-esg-card">
-              <div class="st-esg-card-head"><div><div class="st-esg-card-title">添加组件</div><div class="st-esg-card-desc">基础组件库：全局 / 预设 / 角色分类。组件会进入外置生成提示词。</div></div></div>
+              <div class="st-esg-card-head"><div><div class="st-esg-card-title">添加组件</div><div class="st-esg-card-desc">可以手动添加，也可以从当前预设、世界书条目、角色卡字段里勾选导入。</div></div></div>
               <div class="st-esg-grid">
                 <label>组件名<input id="st-esg-component-name" class="text_pole" type="text" placeholder="例如：人物状态栏" /></label>
                 <label>分类<select id="st-esg-component-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label>
@@ -563,11 +634,11 @@ function renderPluginPanel() {
               <textarea id="st-esg-component-content" class="text_pole textarea_compact st-esg-textarea" rows="5" placeholder="在这里粘贴状态栏格式、要求或组件提示词。"></textarea>
               <div class="st-esg-actions-row">
                 <div id="st-esg-add-component" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-plus"></i><span>添加到组件库</span></div>
-                <div id="st-esg-scan-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-magnifying-glass"></i><span>扫描可导入组件</span></div>
-                <div id="st-esg-import-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>导入勾选项</span></div>
+                <div id="st-esg-scan-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-list-check"></i><span>刷新可选来源</span></div>
+                <div id="st-esg-import-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>导入勾选条目</span></div>
               </div>
             </div>
-            <div id="st-esg-import-candidates" class="st-esg-import-list"><div class="st-esg-empty">还没有扫描结果。</div></div>
+            <div id="st-esg-import-candidates" class="st-esg-import-list"><div class="st-esg-empty">还没有可选来源。点击“刷新可选来源”后，会按预设、世界书、角色卡分组列出条目。</div></div>
             <div id="st-esg-component-list" class="st-esg-component-list"></div>
           </section>
 
