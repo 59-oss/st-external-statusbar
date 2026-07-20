@@ -557,11 +557,57 @@
 
 @media (max-width: 640px) {
   .st-esg-panel {
-    padding: 10px;
+    align-items: flex-start;
+    justify-content: center;
+    padding: max(10px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom));
+    overflow: auto;
   }
 
   .st-esg-shell {
-    max-height: 92vh;
+    width: 100%;
+    min-height: 0;
+    max-height: calc(100dvh - max(20px, env(safe-area-inset-top)) - max(10px, env(safe-area-inset-bottom)));
+    margin: 0;
+    border-radius: 14px;
+  }
+
+  @supports not (height: 100dvh) {
+    .st-esg-shell {
+      max-height: calc(100vh - 24px);
+    }
+  }
+
+  .st-esg-panel-header {
+    padding: 12px;
+  }
+
+  .st-esg-title-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .st-esg-title-text {
+    font-size: 16px;
+  }
+
+  .st-esg-kicker {
+    font-size: 10px;
+  }
+
+  .st-esg-panel-body {
+    padding: 10px;
+  }
+
+  .st-esg-card,
+  .st-esg-hero {
+    padding: 12px;
+  }
+
+  .st-esg-panel-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
   }
 
   .st-esg-hero,
