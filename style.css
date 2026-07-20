@@ -4,6 +4,8 @@
 }
 
 .st-esg-dialog {
+  position: fixed !important;
+  inset: 0 !important;
   width: 100vw;
   height: 100dvh;
   max-width: none;
@@ -15,6 +17,7 @@
   color: #050505;
   box-sizing: border-box;
   overflow: hidden;
+  z-index: 2147483647 !important;
 }
 
 .st-esg-dialog::backdrop {
@@ -291,8 +294,19 @@
 #st-esg-ball:active { cursor: grabbing; }
 
 @media (max-width: 640px) {
-  .st-esg-dialog { padding: max(10px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom)); }
-  .st-esg-shell { width: 100%; height: calc(100dvh - max(20px, env(safe-area-inset-top)) - max(20px, env(safe-area-inset-bottom))); min-height: 0; max-height: calc(100dvh - max(20px, env(safe-area-inset-top)) - max(20px, env(safe-area-inset-bottom))); border-radius: 14px; }
+  .st-esg-dialog {
+    align-items: flex-end !important;
+    justify-content: center !important;
+    padding: max(10px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom));
+  }
+  .st-esg-shell {
+    width: 100%;
+    height: min(88dvh, calc(100dvh - max(22px, env(safe-area-inset-top)) - max(14px, env(safe-area-inset-bottom))));
+    min-height: 0;
+    max-height: min(88dvh, calc(100dvh - max(22px, env(safe-area-inset-top)) - max(14px, env(safe-area-inset-bottom))));
+    margin: 0 auto;
+    border-radius: 18px 18px 12px 12px;
+  }
   @supports not (height: 100dvh) { .st-esg-shell { height: calc(100vh - 24px); max-height: calc(100vh - 24px); } }
   .st-esg-panel-header { padding: 12px; }
   .st-esg-title-icon { width: 34px; height: 34px; border-radius: 10px; }
