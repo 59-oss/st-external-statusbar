@@ -1,7 +1,7 @@
 import { getContext } from '../../../st-context.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.1';
+const EXTENSION_VERSION = '0.3.2';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 
@@ -170,11 +170,25 @@ function switchTab(tabName) {
 
 function getDialog() { return targetDoc.getElementById('st-esg-dialog'); }
 
+function closeSillyTavernOverlays() {
+  // The magic-wand menu is a Popper dropdown on mobile. If it stays open, it can sit above
+  // extension UI and make our panel look "covered" even when the panel itself opened.
+  const wandMenu = targetDoc.getElementById('extensionsMenu') || targetDoc.getElementById('extensions_menu');
+  if (wandMenu) {
+    $(wandMenu).stop(true, true).hide();
+  }
+
+  // Close unpinned navbar drawers that may occupy the mobile viewport.
+  $t('.openIcon:not(.drawerPinnedOpen)').removeClass('openIcon').addClass('closedIcon');
+  $t('.openDrawer').not('.drawerPinnedOpen').removeClass('openDrawer').addClass('closedDrawer');
+}
+
 function togglePanel(forceOpen) {
   const dialog = getDialog();
   if (!dialog) return;
   const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !dialog.open;
   if (shouldOpen) {
+    closeSillyTavernOverlays();
     targetDoc.body.appendChild(dialog);
     if (typeof dialog.showModal === 'function') {
       if (!dialog.open) dialog.showModal();
