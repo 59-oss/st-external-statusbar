@@ -92,7 +92,7 @@
 
 .st-esg-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   margin: 12px 0 14px;
   padding: 6px;
@@ -301,6 +301,46 @@
 
 .st-esg-secret-label {
   margin-top: 12px;
+}
+
+.st-esg-component-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.st-esg-component-item,
+.st-esg-empty {
+  border: 1px solid var(--SmartThemeBorderColor);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.12);
+  padding: 12px;
+}
+
+.st-esg-component-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.st-esg-component-item pre {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px;
+  max-height: 160px;
+  overflow: auto;
+  border-radius: 10px;
+  white-space: pre-wrap;
+  background: rgba(0, 0, 0, 0.18);
+  font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace);
+  font-size: 12px;
+  opacity: 0.88;
+}
+
+.st-esg-empty {
+  opacity: 0.72;
+  text-align: center;
 }
 
 .st-esg-switch,
