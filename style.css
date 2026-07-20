@@ -3,14 +3,6 @@
   background: rgba(0, 0, 0, 0.10);
 }
 
-#st-esg-portal-root {
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: 2147483647 !important;
-  pointer-events: none;
-  isolation: isolate;
-}
-
 .st-esg-panel {
   --st-esg-bg: #f7f7f7;
   --st-esg-card: #ffffff;
@@ -30,12 +22,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 15px;
   background: rgba(0, 0, 0, 0.42);
   backdrop-filter: blur(5px);
   isolation: isolate;
   transform: translateZ(0);
-  pointer-events: auto;
+  overflow: hidden;
 }
 
 .st-esg-panel-hidden {
@@ -49,10 +41,13 @@
 
 .st-esg-shell {
   width: min(780px, 94vw);
-  max-height: min(840px, 90vh);
+  height: min(820px, calc(100dvh - 30px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+  min-height: 360px;
+  max-height: min(820px, calc(100dvh - 30px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
+  margin: auto;
   border: 1px solid var(--st-esg-border);
   border-radius: 18px;
   background: var(--st-esg-bg);
@@ -568,22 +563,24 @@
 
 @media (max-width: 640px) {
   .st-esg-panel {
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
-    padding: max(10px, env(safe-area-inset-top)) 8px max(10px, env(safe-area-inset-bottom));
-    overflow: auto;
+    padding: max(12px, env(safe-area-inset-top)) 8px max(12px, env(safe-area-inset-bottom));
+    overflow: hidden;
   }
 
   .st-esg-shell {
     width: 100%;
+    height: calc(100dvh - max(24px, env(safe-area-inset-top)) - max(24px, env(safe-area-inset-bottom)));
     min-height: 0;
-    max-height: calc(100dvh - max(20px, env(safe-area-inset-top)) - max(10px, env(safe-area-inset-bottom)));
-    margin: 0;
+    max-height: calc(100dvh - max(24px, env(safe-area-inset-top)) - max(24px, env(safe-area-inset-bottom)));
+    margin: auto;
     border-radius: 14px;
   }
 
   @supports not (height: 100dvh) {
     .st-esg-shell {
+      height: calc(100vh - 24px);
       max-height: calc(100vh - 24px);
     }
   }
