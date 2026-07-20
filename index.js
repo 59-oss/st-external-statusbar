@@ -25,6 +25,7 @@ const DEFAULT_SETTINGS = {
 
 let initialized = false;
 let settings = { ...DEFAULT_SETTINGS };
+let importCandidates = [];
 
 function getSettingsStore() {
   const context = getContext();
@@ -40,6 +41,27 @@ function loadSettings() {
 function saveSettings() {
   Object.assign(getSettingsStore(), settings);
   getContext().saveSettingsDebounced();
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function textOf(value) {
+  return String(value ?? '').trim();
+}
+
+function addCandidate(candidates, source, scope, name, content) {
+  const clean = textOf(content);
+  if (!clean) return;
+  const key = `${source}::${scope}::${name}::${clean.slice(0, 200)}`;
+  if (candidates.some((item) => item.key === key)) return;
+  candidates.push({ key, source, scope, name: name || '未命名候选', content: clean });
 }
 
 function getLatestAssistantMessage(chat) {
@@ -67,7 +89,6 @@ function cleanGeneratedText(text) {
     .split('\n')
     .map((item) => item.trim())
     .filter(Boolean);
-
   return tags.reduce((current, tag) => current.split(tag).join(''), String(text || '')).trim();
 }
 
@@ -116,10 +137,8 @@ function normalizeApiUrl(url) {
 
 async function callExternalApi(latestMessage) {
   const apiUrl = normalizeApiUrl(settings.apiUrl);
-  const model = String(settings.apiModel || '').trim();
-  if (!apiUrl || !model) {
-    throw new Error('请先在“API 设置”里填写 API 地址和模型名称。');
-  }
+  const model = textOf(settings.apiModel);
+  if (!apiUrl || !model) throw new Error('请先在“API 设置”里填写 API 地址和模型名称。');
 
   const response = await fetch(apiUrl, {
     method: 'POST',
@@ -159,7 +178,6 @@ function buildFallbackStatusbar(latestMessage) {
 function injectStatusbar(message, text) {
   const block = `${START}\n${text}\n${END}`;
   const hasOldBlock = message.mes.includes(START) && message.mes.includes(END);
-
   if (settings.injectMode === 'replace' && hasOldBlock) {
     message.mes = message.mes.replace(new RegExp(`${START}[\\s\\S]*?${END}`), block);
   } else {
@@ -325,7 +343,7 @@ function renderComponentList() {
   const list = $('#st-esg-component-list');
   if (!list.length) return;
   if (!settings.components.length) {
-    list.html('<div class="st-esg-empty">还没有组件。先手动添加一个状态栏规则。</div>');
+    list.html('<div class="st-esg-empty">还没有组件。可以手动添加，也可以点“扫描可导入组件”。</div>');
     return;
   }
 
@@ -333,10 +351,10 @@ function renderComponentList() {
     <div class="st-esg-component-item" data-index="${index}">
       <label class="st-esg-checkbox">
         <input class="st-esg-component-enabled" type="checkbox" ${item.enabled === false ? '' : 'checked'} />
-        <span>${item.name || '未命名组件'} · ${item.scope || '全局'}</span>
+        <span>${escapeHtml(item.name || '未命名组件')} · ${escapeHtml(item.scope || '全局')}</span>
       </label>
       <button class="menu_button st-esg-component-delete" type="button">删除</button>
-      <pre>${item.content || ''}</pre>
+      <pre>${escapeHtml(item.content || '')}</pre>
     </div>
   `).join(''));
 
@@ -355,9 +373,9 @@ function renderComponentList() {
 }
 
 function addComponent() {
-  const name = String($('#st-esg-component-name').val() || '').trim();
-  const scope = String($('#st-esg-component-scope').val() || '全局');
-  const content = String($('#st-esg-component-content').val() || '').trim();
+  const name = textOf($('#st-esg-component-name').val());
+  const scope = textOf($('#st-esg-component-scope').val()) || '全局';
+  const content = textOf($('#st-esg-component-content').val());
   if (!content) {
     setStatus('组件内容不能为空。');
     return;
@@ -368,6 +386,100 @@ function addComponent() {
   saveSettings();
   renderComponentList();
   setStatus('已添加组件。');
+}
+
+async function scanImportCandidates() {
+  const context = getContext();
+  const candidates = [];
+  const currentChar = context.characters?.[context.characterId];
+  const charData = currentChar?.data || currentChar;
+
+  addCandidate(candidates, '角色卡', '角色', '角色描述', charData?.description || currentChar?.description);
+  addCandidate(candidates, '角色卡', '角色', '性格', charData?.personality || currentChar?.personality);
+  addCandidate(candidates, '角色卡', '角色', '场景', charData?.scenario || currentChar?.scenario);
+  addCandidate(candidates, '角色卡', '角色', '开场白', charData?.first_mes || currentChar?.first_mes);
+  addCandidate(candidates, '角色卡', '角色', '示例对话', charData?.mes_example || currentChar?.mes_example);
+  addCandidate(candidates, '角色卡', '角色', '角色系统提示词', charData?.system_prompt);
+  addCandidate(candidates, '角色卡', '角色', '角色后置提示词', charData?.post_history_instructions);
+
+  const prompts = context.extensionPrompts || {};
+  for (const [key, prompt] of Object.entries(prompts)) {
+    if (prompt?.value) addCandidate(candidates, '当前注入提示', '预设', key, prompt.value);
+  }
+
+  const sysprompt = context.powerUserSettings?.sysprompt;
+  addCandidate(candidates, '当前预设', '预设', sysprompt?.name || '系统提示词', sysprompt?.content);
+  addCandidate(candidates, '当前预设', '预设', '后置提示词', sysprompt?.post_history);
+  addCandidate(candidates, '用户设定', '全局', '用户人格', context.powerUserSettings?.persona_description);
+
+  const worldNames = Array.isArray(context.worldNames) ? context.worldNames : [];
+  const selectedWorldNames = $('#world_info').val() || [];
+  const namesToLoad = [...new Set([...(Array.isArray(selectedWorldNames) ? selectedWorldNames : [selectedWorldNames]).filter(Boolean), ...worldNames.slice(0, 3)])];
+  if (typeof context.loadWorldInfo === 'function') {
+    for (const worldName of namesToLoad.slice(0, 8)) {
+      try {
+        const world = await context.loadWorldInfo(worldName);
+        for (const entry of Object.values(world?.entries || {})) {
+          if (entry?.content) {
+            const title = entry.comment || entry.key?.join?.(', ') || `世界书条目 ${entry.uid ?? ''}`;
+            addCandidate(candidates, `世界书：${worldName}`, '全局', title, entry.content);
+          }
+        }
+      } catch (error) {
+        console.warn(`[${EXTENSION_ID}] 扫描世界书失败`, worldName, error);
+      }
+    }
+  }
+
+  importCandidates = candidates;
+  renderImportCandidates();
+  setStatus(`已扫描到 ${candidates.length} 个可导入候选。`);
+}
+
+function renderImportCandidates() {
+  const box = $('#st-esg-import-candidates');
+  if (!box.length) return;
+  if (!importCandidates.length) {
+    box.html('<div class="st-esg-empty">还没有扫描结果。</div>');
+    return;
+  }
+
+  box.html(importCandidates.map((item, index) => `
+    <div class="st-esg-import-item" data-index="${index}">
+      <label class="st-esg-checkbox">
+        <input class="st-esg-import-check" type="checkbox" />
+        <span>${escapeHtml(item.name)} · ${escapeHtml(item.scope)} · ${escapeHtml(item.source)}</span>
+      </label>
+      <pre>${escapeHtml(item.content.slice(0, 1200))}</pre>
+    </div>
+  `).join(''));
+}
+
+function importCheckedCandidates() {
+  const checked = $('.st-esg-import-check:checked').toArray();
+  if (!checked.length) {
+    setStatus('请先勾选要导入的候选组件。');
+    return;
+  }
+
+  for (const checkbox of checked) {
+    const index = Number($(checkbox).closest('.st-esg-import-item').data('index'));
+    const item = importCandidates[index];
+    if (!item) continue;
+    settings.components.push({
+      id: String(Date.now() + index),
+      name: item.name,
+      scope: item.scope,
+      content: item.content,
+      enabled: true,
+      source: item.source,
+    });
+  }
+
+  saveSettings();
+  renderComponentList();
+  $('.st-esg-import-check').prop('checked', false);
+  setStatus(`已导入 ${checked.length} 个组件。`);
 }
 
 function renderPluginPanel() {
@@ -443,14 +555,19 @@ function renderPluginPanel() {
 
           <section class="st-esg-tab-panel" data-tab-panel="components">
             <div class="st-esg-card">
-              <div class="st-esg-card-head"><div><div class="st-esg-card-title">添加组件</div><div class="st-esg-card-desc">先做基础组件库：全局 / 预设 / 角色分类，之后再接从预设和世界书导入。</div></div></div>
+              <div class="st-esg-card-head"><div><div class="st-esg-card-title">添加组件</div><div class="st-esg-card-desc">基础组件库：全局 / 预设 / 角色分类。组件会进入外置生成提示词。</div></div></div>
               <div class="st-esg-grid">
                 <label>组件名<input id="st-esg-component-name" class="text_pole" type="text" placeholder="例如：人物状态栏" /></label>
                 <label>分类<select id="st-esg-component-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label>
               </div>
               <textarea id="st-esg-component-content" class="text_pole textarea_compact st-esg-textarea" rows="5" placeholder="在这里粘贴状态栏格式、要求或组件提示词。"></textarea>
-              <div id="st-esg-add-component" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-plus"></i><span>添加到组件库</span></div>
+              <div class="st-esg-actions-row">
+                <div id="st-esg-add-component" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-plus"></i><span>添加到组件库</span></div>
+                <div id="st-esg-scan-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-magnifying-glass"></i><span>扫描可导入组件</span></div>
+                <div id="st-esg-import-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>导入勾选项</span></div>
+              </div>
             </div>
+            <div id="st-esg-import-candidates" class="st-esg-import-list"><div class="st-esg-empty">还没有扫描结果。</div></div>
             <div id="st-esg-component-list" class="st-esg-component-list"></div>
           </section>
 
@@ -496,6 +613,8 @@ function renderPluginPanel() {
   panel.on('mousedown', (event) => { if (event.target === panel[0]) togglePanel(false); });
   $('.st-esg-tab').on('click', function () { switchTab(String($(this).data('tab'))); });
   $('#st-esg-add-component').on('click', addComponent);
+  $('#st-esg-scan-components').on('click', scanImportCandidates);
+  $('#st-esg-import-components').on('click', importCheckedCandidates);
 
   $('#st-esg-enabled').on('change', function () { settings.enabled = Boolean($(this).prop('checked')); saveSettings(); });
   $('#st-esg-ball-visible').on('change', function () { settings.ballVisible = Boolean($(this).prop('checked')); saveSettings(); renderFloatingBall(); });
