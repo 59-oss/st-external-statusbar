@@ -309,7 +309,14 @@
   margin-top: 12px;
 }
 
+.st-esg-import-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
 .st-esg-component-item,
+.st-esg-import-item,
 .st-esg-empty {
   border: 1px solid var(--SmartThemeBorderColor);
   border-radius: 14px;
@@ -324,7 +331,13 @@
   align-items: start;
 }
 
-.st-esg-component-item pre {
+.st-esg-import-item {
+  display: grid;
+  gap: 10px;
+}
+
+.st-esg-component-item pre,
+.st-esg-import-item pre {
   grid-column: 1 / -1;
   margin: 0;
   padding: 10px;
@@ -341,6 +354,13 @@
 .st-esg-empty {
   opacity: 0.72;
   text-align: center;
+}
+
+.st-esg-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .st-esg-switch,
