@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS = {
   ballX: 16,
   ballY: 16,
   ballVisible: false,
+  components: [],
 };
 
 let initialized = false;
@@ -33,6 +34,7 @@ function getSettingsStore() {
 
 function loadSettings() {
   settings = Object.assign({ ...DEFAULT_SETTINGS }, getSettingsStore());
+  if (!Array.isArray(settings.components)) settings.components = [];
 }
 
 function saveSettings() {
@@ -49,20 +51,107 @@ function getLatestAssistantMessage(chat) {
   return null;
 }
 
+function getRecentChatText(chat, limit = 8) {
+  return chat.slice(-limit).map((item) => {
+    const role = item?.is_user ? '用户' : '助手';
+    return `${role}：${item?.mes || ''}`;
+  }).join('\n\n');
+}
+
+function getEnabledComponents() {
+  return settings.components.filter((item) => item?.enabled !== false);
+}
+
 function cleanGeneratedText(text) {
   const tags = String(settings.cleanupTags || '')
     .split('\n')
     .map((item) => item.trim())
     .filter(Boolean);
 
-  return tags.reduce((current, tag) => current.split(tag).join(''), text).trim();
+  return tags.reduce((current, tag) => current.split(tag).join(''), String(text || '')).trim();
 }
 
-function buildPlaceholderStatusbar(latestMessage) {
+function buildMessages(latestMessage) {
+  const context = getContext();
+  const components = getEnabledComponents();
+  const componentText = components.length
+    ? components.map((item, index) => `【组件 ${index + 1}｜${item.scope || '全局'}｜${item.name || '未命名'}】\n${item.content || ''}`).join('\n\n')
+    : '当前没有启用的组件。请根据生成任务指令输出状态栏。';
+
+  return [
+    {
+      role: 'system',
+      content: [
+        '你是 SillyTavern 的外置文末状态栏生成器。',
+        '你只生成文末状态栏/文末组件，不续写正文，不解释，不输出分析过程。',
+        '输出必须尽量贴合最近正文的语言、氛围、角色状态与叙事风格。',
+      ].join('\n'),
+    },
+    {
+      role: 'user',
+      content: [
+        `生成任务：${settings.taskPrompt}`,
+        '',
+        '启用组件：',
+        componentText,
+        '',
+        '最近聊天记录：',
+        getRecentChatText(context.chat),
+        '',
+        '最新助手回复：',
+        latestMessage.mes,
+        '',
+        '请现在只输出需要追加在正文末尾的状态栏内容。',
+      ].join('\n'),
+    },
+  ];
+}
+
+function normalizeApiUrl(url) {
+  const trimmed = String(url || '').trim();
+  if (!trimmed) return '';
+  if (trimmed.endsWith('/chat/completions')) return trimmed;
+  return `${trimmed.replace(/\/$/, '')}/chat/completions`;
+}
+
+async function callExternalApi(latestMessage) {
+  const apiUrl = normalizeApiUrl(settings.apiUrl);
+  const model = String(settings.apiModel || '').trim();
+  if (!apiUrl || !model) {
+    throw new Error('请先在“API 设置”里填写 API 地址和模型名称。');
+  }
+
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
+    },
+    body: JSON.stringify({
+      model,
+      messages: buildMessages(latestMessage),
+      max_tokens: Number(settings.maxTokens) || 800,
+      temperature: Number(settings.temperature) || 0.7,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`API 请求失败：${response.status} ${errorText.slice(0, 160)}`);
+  }
+
+  const data = await response.json();
+  const content = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text || '';
+  if (!content.trim()) throw new Error('API 返回为空。');
+  return cleanGeneratedText(content);
+}
+
+function buildFallbackStatusbar(latestMessage) {
   return cleanGeneratedText([
     '[外置状态栏生成器]',
     `任务：${settings.taskPrompt}`,
-    '状态：这是占位输出，后续会接入真正的 API 生成。',
+    '状态：尚未配置独立 API，因此这里是本地占位输出。',
+    `启用组件数：${getEnabledComponents().length}`,
     `最新助手回复长度：${latestMessage.mes.length} 个字符`,
   ].join('\n'));
 }
@@ -86,7 +175,15 @@ async function generateStatusbar() {
     return '';
   }
 
-  const result = buildPlaceholderStatusbar(latest.message);
+  setStatus('正在生成状态栏……');
+  let result = '';
+  try {
+    result = settings.apiUrl ? await callExternalApi(latest.message) : buildFallbackStatusbar(latest.message);
+  } catch (error) {
+    setStatus(error?.message || '生成失败。');
+    return '';
+  }
+
   settings.lastGenerated = result;
   saveSettings();
   $('#st-esg-preview').val(result);
@@ -118,13 +215,9 @@ async function injectGeneratedStatusbar() {
 }
 
 async function handleGenerationEnded() {
-  if (!settings.enabled) return;
-  if (settings.mode === 'manual') return;
-
+  if (!settings.enabled || settings.mode === 'manual') return;
   const result = await generateStatusbar();
-  if (settings.mode === 'autoInject' && result) {
-    await injectGeneratedStatusbar();
-  }
+  if (settings.mode === 'autoInject' && result) await injectGeneratedStatusbar();
 }
 
 function setStatus(text) {
@@ -148,11 +241,7 @@ function clamp(value, min, max) {
 function togglePanel(forceOpen) {
   const panel = $('#st-external-statusbar-panel');
   if (!panel.length) return;
-
-  const shouldOpen = typeof forceOpen === 'boolean'
-    ? forceOpen
-    : panel.hasClass('st-esg-panel-hidden');
-
+  const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : panel.hasClass('st-esg-panel-hidden');
   panel.toggleClass('st-esg-panel-hidden', !shouldOpen);
   $('#st-esg-menu-button').toggleClass('selected', shouldOpen);
   $('#st-esg-ball').toggleClass('selected', shouldOpen);
@@ -175,13 +264,6 @@ function renderMagicWandMenuButton(retry = 0) {
   button.title = '外置状态栏生成器';
   button.innerHTML = '<span><i class="fa-solid fa-wand-magic-sparkles"></i></span><span>状态栏生成器</span>';
   button.addEventListener('click', () => togglePanel(true));
-  button.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      togglePanel(true);
-    }
-  });
-
   menu.prepend(button);
 }
 
@@ -190,20 +272,10 @@ function renderFloatingBall() {
     $('#st-esg-ball').remove();
     return;
   }
-
   if ($('#st-esg-ball').length) return;
 
-  const ball = $(`
-    <button id="st-esg-ball" type="button" title="外置状态栏生成器">
-      <i class="fa-solid fa-wand-magic-sparkles"></i>
-    </button>
-  `);
-
-  ball.css({
-    left: `${settings.ballX ?? 16}px`,
-    bottom: `${settings.ballY ?? 16}px`,
-  });
-
+  const ball = $(`<button id="st-esg-ball" type="button" title="外置状态栏生成器"><i class="fa-solid fa-wand-magic-sparkles"></i></button>`);
+  ball.css({ left: `${settings.ballX ?? 16}px`, bottom: `${settings.ballY ?? 16}px` });
   $('body').append(ball);
 
   let dragging = false;
@@ -218,9 +290,10 @@ function renderFloatingBall() {
     const dx = event.clientX - startX;
     const dy = event.clientY - startY;
     if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
-    const nextLeft = clamp(originLeft + dx, 0, window.innerWidth - 46);
-    const nextBottom = clamp(originBottom - dy, 0, window.innerHeight - 46);
-    ball.css({ left: `${nextLeft}px`, bottom: `${nextBottom}px` });
+    ball.css({
+      left: `${clamp(originLeft + dx, 0, window.innerWidth - 46)}px`,
+      bottom: `${clamp(originBottom - dy, 0, window.innerHeight - 46)}px`,
+    });
   };
 
   const onUp = () => {
@@ -228,10 +301,8 @@ function renderFloatingBall() {
     dragging = false;
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
-    const left = parseFloat(ball.css('left')) || 16;
-    const bottom = parseFloat(ball.css('bottom')) || 16;
-    settings.ballX = left;
-    settings.ballY = bottom;
+    settings.ballX = parseFloat(ball.css('left')) || 16;
+    settings.ballY = parseFloat(ball.css('bottom')) || 16;
     saveSettings();
     if (!moved) togglePanel();
   };
@@ -250,6 +321,55 @@ function renderFloatingBall() {
   });
 }
 
+function renderComponentList() {
+  const list = $('#st-esg-component-list');
+  if (!list.length) return;
+  if (!settings.components.length) {
+    list.html('<div class="st-esg-empty">还没有组件。先手动添加一个状态栏规则。</div>');
+    return;
+  }
+
+  list.html(settings.components.map((item, index) => `
+    <div class="st-esg-component-item" data-index="${index}">
+      <label class="st-esg-checkbox">
+        <input class="st-esg-component-enabled" type="checkbox" ${item.enabled === false ? '' : 'checked'} />
+        <span>${item.name || '未命名组件'} · ${item.scope || '全局'}</span>
+      </label>
+      <button class="menu_button st-esg-component-delete" type="button">删除</button>
+      <pre>${item.content || ''}</pre>
+    </div>
+  `).join(''));
+
+  $('.st-esg-component-enabled').on('change', function () {
+    const index = Number($(this).closest('.st-esg-component-item').data('index'));
+    settings.components[index].enabled = Boolean($(this).prop('checked'));
+    saveSettings();
+  });
+
+  $('.st-esg-component-delete').on('click', function () {
+    const index = Number($(this).closest('.st-esg-component-item').data('index'));
+    settings.components.splice(index, 1);
+    saveSettings();
+    renderComponentList();
+  });
+}
+
+function addComponent() {
+  const name = String($('#st-esg-component-name').val() || '').trim();
+  const scope = String($('#st-esg-component-scope').val() || '全局');
+  const content = String($('#st-esg-component-content').val() || '').trim();
+  if (!content) {
+    setStatus('组件内容不能为空。');
+    return;
+  }
+  settings.components.push({ id: String(Date.now()), name: name || '未命名组件', scope, content, enabled: true });
+  $('#st-esg-component-name').val('');
+  $('#st-esg-component-content').val('');
+  saveSettings();
+  renderComponentList();
+  setStatus('已添加组件。');
+}
+
 function renderPluginPanel() {
   if ($('#st-external-statusbar-panel').length) return;
 
@@ -259,47 +379,33 @@ function renderPluginPanel() {
         <div class="st-esg-panel-header">
           <div class="st-esg-panel-title">
             <div class="st-esg-title-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
-            <div>
-              <div class="st-esg-kicker">SillyTavern 插件</div>
-              <div class="st-esg-title-text">外置状态栏生成器</div>
-            </div>
+            <div><div class="st-esg-kicker">SillyTavern 插件</div><div class="st-esg-title-text">外置状态栏生成器</div></div>
           </div>
           <div id="st-esg-close" class="menu_button fa-solid fa-xmark" title="关闭面板"></div>
         </div>
 
         <div class="st-esg-panel-body">
           <section class="st-esg-hero">
-            <div>
-              <div class="st-esg-hero-title">把文末组件从正文注意力里拆出来</div>
-              <div class="st-esg-hero-desc">正文先专心讲故事，状态栏由插件单独生成、预览、注入。</div>
-            </div>
-            <div class="st-esg-status-pill">
-              <span class="st-esg-dot"></span>
-              <span id="st-esg-status">插件已加载。</span>
-            </div>
+            <div><div class="st-esg-hero-title">把文末组件从正文注意力里拆出来</div><div class="st-esg-hero-desc">正文先专心讲故事，状态栏由插件单独生成、预览、注入。</div></div>
+            <div class="st-esg-status-pill"><span class="st-esg-dot"></span><span id="st-esg-status">插件已加载。</span></div>
           </section>
 
           <nav class="st-esg-tabs" aria-label="外置状态栏生成器分页">
             <button class="st-esg-tab" type="button" data-tab="workspace"><i class="fa-solid fa-sparkles"></i><span>生成结果</span></button>
             <button class="st-esg-tab" type="button" data-tab="runtime"><i class="fa-solid fa-sliders"></i><span>运行设置</span></button>
             <button class="st-esg-tab" type="button" data-tab="api"><i class="fa-solid fa-plug"></i><span>API 设置</span></button>
+            <button class="st-esg-tab" type="button" data-tab="components"><i class="fa-solid fa-layer-group"></i><span>组件库</span></button>
             <button class="st-esg-tab" type="button" data-tab="output"><i class="fa-solid fa-code"></i><span>输出注入</span></button>
           </nav>
 
           <section class="st-esg-tab-panel" data-tab-panel="workspace">
             <div class="st-esg-card st-esg-preview-card">
-              <div class="st-esg-card-head">
-                <div>
-                  <div class="st-esg-card-title">生成内容</div>
-                  <div class="st-esg-card-desc">这里是状态栏生成结果。你可以先检查，再注入最新回复。</div>
-                </div>
-              </div>
+              <div class="st-esg-card-head"><div><div class="st-esg-card-title">生成内容</div><div class="st-esg-card-desc">这里是状态栏生成结果。你可以先检查，再注入最新回复。</div></div></div>
               <textarea id="st-esg-preview" class="text_pole textarea_compact st-esg-textarea st-esg-preview" rows="11" placeholder="生成后的状态栏会出现在这里。"></textarea>
             </div>
-
             <div class="st-esg-workflow">
               <div class="st-esg-step"><b>1</b><span>读取最新助手回复</span></div>
-              <div class="st-esg-step"><b>2</b><span>单独生成文末组件</span></div>
+              <div class="st-esg-step"><b>2</b><span>按组件与任务生成</span></div>
               <div class="st-esg-step"><b>3</b><span>预览后写回正文末尾</span></div>
             </div>
           </section>
@@ -307,97 +413,63 @@ function renderPluginPanel() {
           <section class="st-esg-tab-panel" data-tab-panel="runtime">
             <div class="st-esg-card">
               <div class="st-esg-card-head">
-                <div>
-                  <div class="st-esg-card-title">运行模式</div>
-                  <div class="st-esg-card-desc">控制插件是否监听正文生成，以及生成后是否自动注入。</div>
-                </div>
-                <label class="st-esg-switch">
-                  <input id="st-esg-enabled" type="checkbox" />
-                  <span></span>
-                  <em>启用</em>
-                </label>
+                <div><div class="st-esg-card-title">运行模式</div><div class="st-esg-card-desc">控制插件是否监听正文生成，以及生成后是否自动注入。</div></div>
+                <label class="st-esg-switch"><input id="st-esg-enabled" type="checkbox" /><span></span><em>启用</em></label>
               </div>
-
               <select id="st-esg-mode" class="text_pole st-esg-select">
                 <option value="autoInject">自动生成，并自动注入最新回复</option>
                 <option value="autoReview">自动生成，但手动确认注入</option>
                 <option value="manual">手动点击生成，手动注入</option>
               </select>
             </div>
-
             <div class="st-esg-card">
-              <div class="st-esg-card-head">
-                <div>
-                  <div class="st-esg-card-title">生成任务指令</div>
-                  <div class="st-esg-card-desc">告诉插件“要补什么状态栏组件”。这会作为外置生成任务的核心约束。</div>
-                </div>
-              </div>
+              <div class="st-esg-card-head"><div><div class="st-esg-card-title">生成任务指令</div><div class="st-esg-card-desc">告诉插件“要补什么状态栏组件”。这会作为外置生成任务的核心约束。</div></div></div>
               <textarea id="st-esg-task" class="text_pole textarea_compact st-esg-textarea" rows="7"></textarea>
             </div>
           </section>
 
           <section class="st-esg-tab-panel" data-tab-panel="api">
             <div class="st-esg-card">
-              <div class="st-esg-card-head">
-                <div>
-                  <div class="st-esg-card-title">独立 API</div>
-                  <div class="st-esg-card-desc">留空时使用酒馆当前主 API；填写后可让状态栏走更便宜或更轻的模型。</div>
-                </div>
-              </div>
+              <div class="st-esg-card-head"><div><div class="st-esg-card-title">独立 API</div><div class="st-esg-card-desc">支持 OpenAI-compatible /v1/chat/completions。留空时只生成占位内容。</div></div></div>
               <div class="st-esg-grid">
-                <label>API 地址<input id="st-esg-api-url" class="text_pole" type="text" placeholder="留空则跟随主 API" /></label>
+                <label>API 地址<input id="st-esg-api-url" class="text_pole" type="text" placeholder="例如 https://api.openai.com/v1" /></label>
                 <label>模型名称<input id="st-esg-api-model" class="text_pole" type="text" placeholder="例如 gpt-4o-mini / deepseek-chat" /></label>
                 <label>最大输出<input id="st-esg-max-tokens" class="text_pole" type="number" min="1" step="1" /></label>
                 <label>温度<input id="st-esg-temperature" class="text_pole" type="number" min="0" max="2" step="0.1" /></label>
               </div>
-              <label class="st-esg-secret-label">API Key
-                <input id="st-esg-api-key" class="text_pole" type="password" placeholder="可选。留空则不覆盖主 API 鉴权。" />
-              </label>
+              <label class="st-esg-secret-label">API Key<input id="st-esg-api-key" class="text_pole" type="password" placeholder="可选。多数独立 API 需要填写。" /></label>
             </div>
+          </section>
+
+          <section class="st-esg-tab-panel" data-tab-panel="components">
+            <div class="st-esg-card">
+              <div class="st-esg-card-head"><div><div class="st-esg-card-title">添加组件</div><div class="st-esg-card-desc">先做基础组件库：全局 / 预设 / 角色分类，之后再接从预设和世界书导入。</div></div></div>
+              <div class="st-esg-grid">
+                <label>组件名<input id="st-esg-component-name" class="text_pole" type="text" placeholder="例如：人物状态栏" /></label>
+                <label>分类<select id="st-esg-component-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label>
+              </div>
+              <textarea id="st-esg-component-content" class="text_pole textarea_compact st-esg-textarea" rows="5" placeholder="在这里粘贴状态栏格式、要求或组件提示词。"></textarea>
+              <div id="st-esg-add-component" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-plus"></i><span>添加到组件库</span></div>
+            </div>
+            <div id="st-esg-component-list" class="st-esg-component-list"></div>
           </section>
 
           <section class="st-esg-tab-panel" data-tab-panel="output">
             <div class="st-esg-card">
-              <div class="st-esg-card-head">
-                <div>
-                  <div class="st-esg-card-title">注入方式</div>
-                  <div class="st-esg-card-desc">决定每次注入是替换旧状态栏，还是追加到正文末尾。</div>
-                </div>
-              </div>
-              <select id="st-esg-inject-mode" class="text_pole st-esg-select">
-                <option value="replace">同名标记存在时替换，否则追加</option>
-                <option value="append">始终追加到最新回复末尾</option>
-              </select>
+              <div class="st-esg-card-head"><div><div class="st-esg-card-title">注入方式</div><div class="st-esg-card-desc">决定每次注入是替换旧状态栏，还是追加到正文末尾。</div></div></div>
+              <select id="st-esg-inject-mode" class="text_pole st-esg-select"><option value="replace">同名标记存在时替换，否则追加</option><option value="append">始终追加到最新回复末尾</option></select>
             </div>
-
             <div class="st-esg-card">
-              <div class="st-esg-card-head">
-                <div>
-                  <div class="st-esg-card-title">输出清理</div>
-                  <div class="st-esg-card-desc">每行一个标签或包裹符。之后会用于清理模型多余输出。</div>
-                </div>
-              </div>
+              <div class="st-esg-card-head"><div><div class="st-esg-card-title">输出清理</div><div class="st-esg-card-desc">每行一个标签或包裹符，用于清理模型多余输出。</div></div></div>
               <textarea id="st-esg-cleanup-tags" class="text_pole textarea_compact st-esg-textarea" rows="5" placeholder="例如：&#10;<status>&#10;</status>"></textarea>
             </div>
-
-            <div class="st-esg-card st-esg-compact-card">
-              <label class="st-esg-checkbox">
-                <input id="st-esg-ball-visible" type="checkbox" />
-                <span>显示可选悬浮快捷按钮</span>
-              </label>
-            </div>
+            <div class="st-esg-card st-esg-compact-card"><label class="st-esg-checkbox"><input id="st-esg-ball-visible" type="checkbox" /><span>显示可选悬浮快捷按钮</span></label></div>
           </section>
         </div>
 
         <div class="st-esg-panel-footer">
-          <div id="st-esg-generate" class="menu_button menu_button_icon st-esg-primary-action">
-            <i class="fa-solid fa-sparkles"></i>
-            <span>生成状态栏</span>
-          </div>
-          <div id="st-esg-inject" class="menu_button menu_button_icon st-esg-secondary-action">
-            <i class="fa-solid fa-file-import"></i>
-            <span>注入最新回复</span>
-          </div>
+          <div id="st-esg-generate" class="menu_button menu_button_icon st-esg-primary-action"><i class="fa-solid fa-sparkles"></i><span>生成状态栏</span></div>
+          <div id="st-esg-inject" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>注入最新回复</span></div>
         </div>
       </div>
     </div>
@@ -417,78 +489,26 @@ function renderPluginPanel() {
   $('#st-esg-temperature').val(settings.temperature);
   $('#st-esg-inject-mode').val(settings.injectMode);
   $('#st-esg-cleanup-tags').val(settings.cleanupTags);
+  renderComponentList();
   switchTab(settings.activeTab || 'workspace');
 
   $('#st-esg-close').on('click', () => togglePanel(false));
-  panel.on('mousedown', (event) => {
-    if (event.target === panel[0]) togglePanel(false);
-  });
+  panel.on('mousedown', (event) => { if (event.target === panel[0]) togglePanel(false); });
+  $('.st-esg-tab').on('click', function () { switchTab(String($(this).data('tab'))); });
+  $('#st-esg-add-component').on('click', addComponent);
 
-  $('.st-esg-tab').on('click', function () {
-    switchTab(String($(this).data('tab')));
-  });
-
-  $('#st-esg-enabled').on('change', function () {
-    settings.enabled = Boolean($(this).prop('checked'));
-    saveSettings();
-  });
-
-  $('#st-esg-ball-visible').on('change', function () {
-    settings.ballVisible = Boolean($(this).prop('checked'));
-    saveSettings();
-    renderFloatingBall();
-  });
-
-  $('#st-esg-mode').on('change', function () {
-    settings.mode = String($(this).val());
-    saveSettings();
-  });
-
-  $('#st-esg-task').on('input', function () {
-    settings.taskPrompt = String($(this).val());
-    saveSettings();
-  });
-
-  $('#st-esg-preview').on('input', function () {
-    settings.lastGenerated = String($(this).val());
-    saveSettings();
-  });
-
-  $('#st-esg-api-url').on('input', function () {
-    settings.apiUrl = String($(this).val());
-    saveSettings();
-  });
-
-  $('#st-esg-api-key').on('input', function () {
-    settings.apiKey = String($(this).val());
-    saveSettings();
-  });
-
-  $('#st-esg-api-model').on('input', function () {
-    settings.apiModel = String($(this).val());
-    saveSettings();
-  });
-
-  $('#st-esg-max-tokens').on('input', function () {
-    settings.maxTokens = String($(this).val());
-    saveSettings();
-  });
-
-  $('#st-esg-temperature').on('input', function () {
-    settings.temperature = String($(this).val());
-    saveSettings();
-  });
-
-  $('#st-esg-inject-mode').on('change', function () {
-    settings.injectMode = String($(this).val());
-    saveSettings();
-  });
-
-  $('#st-esg-cleanup-tags').on('input', function () {
-    settings.cleanupTags = String($(this).val());
-    saveSettings();
-  });
-
+  $('#st-esg-enabled').on('change', function () { settings.enabled = Boolean($(this).prop('checked')); saveSettings(); });
+  $('#st-esg-ball-visible').on('change', function () { settings.ballVisible = Boolean($(this).prop('checked')); saveSettings(); renderFloatingBall(); });
+  $('#st-esg-mode').on('change', function () { settings.mode = String($(this).val()); saveSettings(); });
+  $('#st-esg-task').on('input', function () { settings.taskPrompt = String($(this).val()); saveSettings(); });
+  $('#st-esg-preview').on('input', function () { settings.lastGenerated = String($(this).val()); saveSettings(); });
+  $('#st-esg-api-url').on('input', function () { settings.apiUrl = String($(this).val()); saveSettings(); });
+  $('#st-esg-api-key').on('input', function () { settings.apiKey = String($(this).val()); saveSettings(); });
+  $('#st-esg-api-model').on('input', function () { settings.apiModel = String($(this).val()); saveSettings(); });
+  $('#st-esg-max-tokens').on('input', function () { settings.maxTokens = String($(this).val()); saveSettings(); });
+  $('#st-esg-temperature').on('input', function () { settings.temperature = String($(this).val()); saveSettings(); });
+  $('#st-esg-inject-mode').on('change', function () { settings.injectMode = String($(this).val()); saveSettings(); });
+  $('#st-esg-cleanup-tags').on('input', function () { settings.cleanupTags = String($(this).val()); saveSettings(); });
   $('#st-esg-generate').on('click', generateStatusbar);
   $('#st-esg-inject').on('click', injectGeneratedStatusbar);
 }
@@ -498,7 +518,6 @@ function mountUi() {
     window.setTimeout(mountUi, 500);
     return;
   }
-
   renderMagicWandMenuButton();
   renderFloatingBall();
   renderPluginPanel();
@@ -506,7 +525,6 @@ function mountUi() {
 
 function loadStylesheet() {
   if (document.getElementById(`${EXTENSION_ID}-style`)) return;
-
   const link = document.createElement('link');
   link.id = `${EXTENSION_ID}-style`;
   link.rel = 'stylesheet';
@@ -517,11 +535,9 @@ function loadStylesheet() {
 function init() {
   if (initialized) return;
   initialized = true;
-
   loadSettings();
   loadStylesheet();
   mountUi();
-
   const context = getContext();
   context.eventSource.on(context.eventTypes.GENERATION_ENDED, handleGenerationEnded);
   console.log(`[${EXTENSION_ID}] 已加载`);
