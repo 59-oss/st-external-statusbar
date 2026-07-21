@@ -177,14 +177,14 @@ export async function collectComponentImportCandidates({ targetWindow, context, 
   return candidates;
 }
 
-export function collectPresetImportGroups({ targetWindow, context }) {
-  return getPresetNamesSafe(targetWindow, context).map((presetName) => {
-    const candidates = [];
-    for (const prompt of getPresetEntriesSafe(targetWindow, presetName)) {
-      addImportCandidate(candidates, `预设：${presetName}`, presetName, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content);
-    }
-    return { scope: SOURCE_PRESET, group: `预设：${presetName}`, source: presetName, loaded: true, items: candidates };
-  });
+export function collectPresetImportGroups({ targetWindow, context, presetName = '' }) {
+  const selected = textOf(presetName) || getCurrentPresetNameSafe(targetWindow, context) || getPresetNamesSafe(targetWindow, context)[0] || '';
+  if (!selected) return [];
+  const candidates = [];
+  for (const prompt of getPresetEntriesSafe(targetWindow, selected)) {
+    addImportCandidate(candidates, `预设：${selected}`, selected, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content);
+  }
+  return [{ scope: SOURCE_PRESET, group: `预设：${selected}`, source: selected, loaded: true, items: candidates }];
 }
 
 export function collectWorldbookImportGroups({ targetWindow, context, selectedWorldNames = [] }) {
