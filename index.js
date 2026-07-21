@@ -15,7 +15,7 @@ import {
 } from './component-sources.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.14';
+const EXTENSION_VERSION = '0.3.15';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -53,6 +53,7 @@ let initialized = false;
 let settings = { ...DEFAULT_SETTINGS };
 let importCandidates = [];
 let importGroups = [];
+let activeWorldbookGroupIndex = null;
 
 const $t = (selectorOrHtml) => $(selectorOrHtml, targetDoc);
 const textOf = (value) => String(value ?? '').trim();
@@ -346,6 +347,17 @@ function restoreImportViewState(state) {
   if (panelBody.length) panelBody.scrollTop(state.panelScrollTop || 0);
 }
 
+async function openWorldbookDetail(groupIndex) {
+  activeWorldbookGroupIndex = Number(groupIndex);
+  renderImportCandidates();
+  await loadImportGroup(activeWorldbookGroupIndex);
+}
+
+function backToWorldbookList() {
+  activeWorldbookGroupIndex = null;
+  renderImportCandidates();
+}
+
 function renderSourcePresetSelect() {
   const select = $t('#st-esg-source-preset');
   if (!select.length) return;
@@ -364,6 +376,7 @@ async function scanImportCandidates() {
     ...collectPresetImportGroups({ targetWindow, context, presetName: settings.activeSourcePreset }),
     ...collectWorldbookImportGroups({ targetWindow, context, selectedWorldNames }),
   ];
+  activeWorldbookGroupIndex = null;
   importCandidates = importGroups.flatMap((group) => group.items || []);
   renderImportCandidates();
   setStatus(`已列出 ${importGroups.length} 个来源。世界书会在展开时加载。`);
@@ -419,19 +432,22 @@ function renderImportCandidates() {
     const shouldOpen = group.uiOpen || viewState.openGroups.has(group.groupIndex) || (group.loaded && group.scope !== SOURCE_WORLDBOOK);
     return `<details class="st-esg-import-group" data-group-index="${group.groupIndex}" ${shouldOpen ? 'open' : ''}><summary class="st-esg-import-group-head"><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loaded ? `${group.items.length} 个可导入条目` : '未加载，点开读取'}</div></div>${group.loaded ? '<button class="menu_button st-esg-import-group-toggle" type="button">本组全选</button>' : ''}</summary><div class="st-esg-import-group-list">${groupBody(group)}</div></details>`;
   };
+  const renderWorldbookRow = (group) => `<button class="st-esg-worldbook-row" type="button" data-group-index="${group.groupIndex}"><span>${escapeHtml(group.group)}</span><em>${group.loaded ? `${group.items.length} 个条目` : '点进查看'}</em><i class="fa-solid fa-chevron-right"></i></button>`;
+  const renderWorldbookDetail = (group) => `<div class="st-esg-worldbook-detail" data-group-index="${group.groupIndex}"><div class="st-esg-detail-head"><button class="menu_button st-esg-back-worldbooks" type="button"><i class="fa-solid fa-arrow-left"></i><span>返回世界书列表</span></button><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loading ? '正在加载条目...' : group.loaded ? `${group.items.length} 个可导入条目` : '准备加载这本世界书'}</div></div>${group.loaded ? '<button class="menu_button st-esg-import-detail-toggle" type="button">本书全选</button>' : ''}</div><div class="st-esg-import-group-list">${groupBody(group)}</div></div>`;
   const presetSection = presetGroups.length ? `<details class="st-esg-import-scope" open><summary class="st-esg-import-scope-summary"><span>预设</span><em>${countItems(presetGroups)} 个已加载条目</em></summary><div class="st-esg-import-scope-body">${presetGroups.map(renderGroup).join('')}</div></details>` : '';
-  const worldbookCategoryHtml = [...worldbookCategories.values()]
-    .filter((category) => category.groups.length)
-    .map((category) => `<details class="st-esg-import-category" open><summary class="st-esg-import-category-summary"><span>${escapeHtml(category.categoryLabel)}</span><em>${category.groups.length} 本</em></summary><div class="st-esg-import-category-body">${category.groups.map(renderGroup).join('')}</div></details>`)
-    .join('');
-  const worldbookSection = worldbookGroups.length ? `<details class="st-esg-import-scope" open><summary class="st-esg-import-scope-summary"><span>世界书</span><em>${worldbookGroups.length} 本来源</em></summary><div class="st-esg-import-scope-body">${worldbookCategoryHtml}</div></details>` : '';
-  box.html(`${presetSection}${worldbookSection}` || '<div class="st-esg-empty">没有可用来源。</div>');
+  const detailGroup = activeWorldbookGroupIndex === null ? null : groupsWithIndex.find((group) => group.groupIndex === activeWorldbookGroupIndex && group.scope === SOURCE_WORLDBOOK);
+  const worldbookSection = detailGroup
+    ? renderWorldbookDetail(detailGroup)
+    : (worldbookGroups.length ? `<details class="st-esg-import-scope" open><summary class="st-esg-import-scope-summary"><span>世界书</span><em>${worldbookGroups.length} 本来源</em></summary><div class="st-esg-import-scope-body">${[...worldbookCategories.values()].filter((category) => category.groups.length).map((category) => `<details class="st-esg-import-category" open><summary class="st-esg-import-category-summary"><span>${escapeHtml(category.categoryLabel)}</span><em>${category.groups.length} 本</em></summary><div class="st-esg-import-category-body">${category.groups.map(renderWorldbookRow).join('')}</div></details>`).join('')}</div></details>` : '');
+  box.html(detailGroup ? worldbookSection : (`${presetSection}${worldbookSection}` || '<div class="st-esg-empty">没有可用来源。</div>'));
   restoreImportViewState(viewState);
   $t('.st-esg-import-group').on('toggle', function () {
     const groupIndex = Number($(this).data('group-index'));
     if (importGroups[groupIndex]) importGroups[groupIndex].uiOpen = this.open;
     if (this.open) loadImportGroup(groupIndex);
   });
+  $t('.st-esg-worldbook-row').on('click', function () { openWorldbookDetail(Number($(this).data('group-index'))); });
+  $t('.st-esg-back-worldbooks').on('click', backToWorldbookList);
   $t('.st-esg-import-check').on('click', (event) => event.stopPropagation());
   $t('.st-esg-import-group-toggle').on('click', function (event) {
     event.preventDefault();
@@ -440,6 +456,14 @@ function renderImportCandidates() {
     const shouldCheck = checks.toArray().some((item) => !$(item).prop('checked'));
     checks.prop('checked', shouldCheck);
     $(this).text(shouldCheck ? '取消本组' : '本组全选');
+  });
+  $t('.st-esg-import-detail-toggle').on('click', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const checks = $(this).closest('.st-esg-worldbook-detail').find('.st-esg-import-check');
+    const shouldCheck = checks.toArray().some((item) => !$(item).prop('checked'));
+    checks.prop('checked', shouldCheck);
+    $(this).text(shouldCheck ? '取消本书' : '本书全选');
   });
 }
 
