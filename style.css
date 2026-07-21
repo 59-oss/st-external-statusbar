@@ -246,6 +246,11 @@
 .st-esg-component-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 14px; cursor: pointer; background: #f4f4f4; }
 .st-esg-component-section-head em { color: #666; font-style: normal; font-size: 12px; }
 .st-esg-component-section-body { display: grid; gap: 8px; padding: 10px; }
+.st-esg-component-folder { border: 1px solid #dcdcdc; border-radius: 16px; background: #fafafa; overflow: hidden; }
+.st-esg-component-folder-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; cursor: pointer; background: #efefef; }
+.st-esg-component-folder-head em { color: #666; font-style: normal; font-size: 12px; white-space: nowrap; }
+.st-esg-component-folder-title { color: #050505; font-weight: 760; }
+.st-esg-component-folder-body { display: grid; gap: 8px; padding: 9px; }
 .st-esg-import-scope { border: 1px solid #cfcfcf; border-radius: 18px; background: #fff; overflow: hidden; }
 .st-esg-import-scope-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 14px; cursor: pointer; color: #050505; font-weight: 800; background: #f4f4f4; }
 .st-esg-import-scope-summary em,

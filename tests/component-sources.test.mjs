@@ -6,6 +6,7 @@ import {
   collectWorldbookImportCandidates,
   collectWorldbookImportGroups,
   getActiveComponentsForContext,
+  getComponentLibraryFolders,
   getPresetNamesSafe,
   getWorldbookNamesSafe,
   normalizeComponent,
@@ -130,3 +131,12 @@ assert.deepEqual(
   getActiveComponentsForContext(shuffledImportedComponents, targetWindow, context).map((item) => item.name),
   ['Component start', 'Component middle', 'Component end', 'Manual note'],
 );
+
+const presetLibraryFolders = getComponentLibraryFolders([
+  { name: 'Manual preset item', scope: '预设', sourceType: '手动', content: 'manual' },
+  { name: 'Choice end', scope: '预设', sourceType: SOURCE_WORLDBOOK, source: 'Clickable Choices', sourceOrder: 2, content: 'end' },
+  { name: 'Choice start', scope: '预设', sourceType: SOURCE_WORLDBOOK, source: 'Clickable Choices', sourceOrder: 0, content: 'start' },
+  { name: 'Ako format', scope: '预设', sourceType: '预设', source: 'Ako Preset', sourceOrder: 0, content: 'format' },
+], '预设');
+assert.deepEqual(presetLibraryFolders.map((folder) => folder.name), ['手动添加', '预设：Ako Preset', '世界书：Clickable Choices']);
+assert.deepEqual(presetLibraryFolders[2].items.map((item) => item.name), ['Choice start', 'Choice end']);

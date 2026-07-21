@@ -8,6 +8,8 @@ import {
   collectWorldbookImportCandidates,
   collectWorldbookImportGroups,
   getActiveComponentsForContext,
+  getComponentFolderName,
+  getComponentLibraryFolders,
   getComponentBindingName,
   getCurrentPresetNameSafe,
   getPresetNamesSafe,
@@ -15,7 +17,7 @@ import {
 } from './component-sources.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.20';
+const EXTENSION_VERSION = '0.3.21';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 const SOURCE_MODE_PROMPT = 'prompt';
@@ -294,8 +296,10 @@ function renderComponentList() {
     { scope: COMPONENT_SCOPE_CHARACTER, title: '角色组件', desc: '只在绑定的角色卡聊天时参与生成。' },
   ];
   list.html(sections.map((section) => {
-    const items = settings.components.map((item, index) => ({ ...item, index })).filter((item) => item.scope === section.scope);
-    return `<details class="st-esg-component-section" open><summary class="st-esg-component-section-head"><div><div class="st-esg-import-group-title">${section.title}</div><div class="st-esg-card-desc">${section.desc}</div></div><em>${items.length} 个</em></summary><div class="st-esg-component-section-body">${items.length ? items.map((item) => `<details class="st-esg-component-item" data-index="${item.index}"><summary class="st-esg-component-item-head"><label class="st-esg-checkbox"><input class="st-esg-component-enabled" type="checkbox" ${item.enabled === false ? '' : 'checked'} /><span>${escapeHtml(item.name || '未命名组件')}</span></label>${item.bindName ? `<em>${escapeHtml(item.bindName)}</em>` : ''}<button class="menu_button st-esg-component-delete" type="button">删除</button></summary><div class="st-esg-component-preview" data-loaded="false"></div></details>`).join('') : '<div class="st-esg-empty st-esg-empty-small">暂无组件</div>'}</div></details>`;
+    const folders = getComponentLibraryFolders(settings.components, section.scope);
+    const count = folders.reduce((sum, folder) => sum + folder.items.length, 0);
+    const folderHtml = folders.map((folder) => `<details class="st-esg-component-folder"><summary class="st-esg-component-folder-head"><div><div class="st-esg-component-folder-title">${escapeHtml(folder.name)}</div><div class="st-esg-card-desc">${folder.items.length} 个条目</div></div><em>${folder.items.filter((item) => item.enabled !== false).length}/${folder.items.length} 启用</em></summary><div class="st-esg-component-folder-body">${folder.items.map((item) => `<details class="st-esg-component-item" data-index="${item.index}"><summary class="st-esg-component-item-head"><label class="st-esg-checkbox"><input class="st-esg-component-enabled" type="checkbox" ${item.enabled === false ? '' : 'checked'} /><span>${escapeHtml(item.name || '未命名组件')}</span></label>${item.bindName ? `<em>${escapeHtml(item.bindName)}</em>` : ''}<button class="menu_button st-esg-component-delete" type="button">删除</button></summary><div class="st-esg-component-preview" data-loaded="false"></div></details>`).join('')}</div></details>`).join('');
+    return `<details class="st-esg-component-section" open><summary class="st-esg-component-section-head"><div><div class="st-esg-import-group-title">${section.title}</div><div class="st-esg-card-desc">${section.desc}</div></div><em>${count} 个</em></summary><div class="st-esg-component-section-body">${folderHtml || '<div class="st-esg-empty st-esg-empty-small">暂无组件</div>'}</div></details>`;
   }).join(''));
   saveSettings();
   $t('.st-esg-component-enabled').on('click', (event) => event.stopPropagation());
@@ -316,7 +320,7 @@ function addComponent() {
   const scope = textOf($t('#st-esg-component-scope').val()) || COMPONENT_SCOPE_GLOBAL;
   const content = textOf($t('#st-esg-component-content').val());
   if (!content) { setStatus('组件内容不能为空。'); return; }
-  settings.components.push({ id: String(Date.now()), name: name || '未命名组件', scope, bindName: getComponentBindingName(scope, targetWindow, getContext()), content, enabled: true, sourceType: '手动' });
+  settings.components.push({ id: String(Date.now()), name: name || '未命名组件', scope, bindName: getComponentBindingName(scope, targetWindow, getContext()), content, enabled: true, sourceType: '手动', folderName: '手动添加' });
   $t('#st-esg-component-name').val(''); $t('#st-esg-component-content').val('');
   saveSettings(); renderComponentList(); setStatus('已添加组件。');
 }
@@ -567,7 +571,7 @@ function importCheckedCandidates() {
     const item = group?.items?.[Number(row.data('item-index'))];
     if (!item) continue;
     const existingIndex = findImportedComponentIndex(item, targetScope, bindName);
-    const importedComponent = { name: item.name, scope: targetScope, bindName, content: item.content, enabled: true, source: item.source, sourceType: item.scope, sourceOrder: item.sourceOrder, sourceUid: item.sourceUid };
+    const importedComponent = { name: item.name, scope: targetScope, bindName, content: item.content, enabled: true, source: item.source, sourceType: item.scope, sourceOrder: item.sourceOrder, sourceUid: item.sourceUid, folderName: getComponentFolderName(item) };
     if (existingIndex >= 0) {
       settings.components[existingIndex] = { ...settings.components[existingIndex], ...importedComponent };
       updated += 1;
