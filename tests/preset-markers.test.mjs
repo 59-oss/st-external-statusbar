@@ -69,7 +69,12 @@ assert.equal(markerGroups[0].items.find((item) => item.markerType === 'charPerso
 assert.equal(markerGroups[0].items.find((item) => item.markerType === 'dialogueExamples').content, '酒馆字段示例对话');
 assert.equal(markerGroups[0].items.find((item) => item.markerType === 'personaDescription').content, '酒馆字段用户设定');
 assert.equal(markerGroups[0].items.find((item) => item.markerType === 'scenario').enabled, false);
+/*
 assert.ok(markerGroups[0].items.find((item) => item.markerType === 'chatHistory').content.includes('聊天历史'));
+
+*/
+assert.equal(markerGroups[0].items.find((item) => item.markerType === 'chatHistory').content, '');
+assert.equal(markerGroups[0].items.find((item) => item.markerType === 'chatHistory').locked, true);
 
 const markerGroupsWithoutHelperPreset = collectPresetImportGroups({
   targetWindow: {

@@ -8,7 +8,7 @@ const textOf = (value) => String(value ?? '').trim();
 
 export function addImportCandidate(candidates, group, source, scope, name, content, enabled = true, metadata = {}) {
   const clean = textOf(content);
-  if (!clean) return;
+  if (!clean && !textOf(metadata?.markerType)) return;
   const cleanName = textOf(name) || '未命名条目';
   const key = `${group}::${source}::${scope}::${cleanName}::${clean.slice(0, 200)}`;
   if (!candidates.some((item) => item.key === key)) {
@@ -20,6 +20,17 @@ export function getPresetEntriesSafe(targetWindow, name) {
   let preset = null;
   try { preset = targetWindow?.TavernHelper?.getPreset?.(name) || null; } catch (_) {}
   return preset && Array.isArray(preset.prompts) ? preset.prompts : [];
+}
+
+function getInUsePresetSafe(targetWindow) {
+  const candidates = [targetWindow, targetWindow?.parent, globalThis].filter(Boolean);
+  for (const candidate of candidates) {
+    try {
+      const preset = candidate?.getPreset?.('in_use');
+      if (preset && Array.isArray(preset.prompts)) return preset;
+    } catch (_) {}
+  }
+  return null;
 }
 
 export function getPresetPromptEnabledMap(targetWindow, name) {
@@ -82,13 +93,36 @@ function getBuiltinMarkerPrompt(identifier, context) {
   const marker = BUILTIN_MARKER_PROMPTS[textOf(identifier)];
   if (!marker) return null;
   const content = typeof marker.getContent === 'function' ? marker.getContent(context) : marker.content;
+  const markerType = textOf(identifier);
+  const placeholderOnly = ['worldInfoBefore', 'worldInfoAfter', 'chatHistory'].includes(markerType);
   return {
-    identifier: textOf(identifier),
+    identifier: markerType,
     name: marker.name,
     role: 'system',
     content: textOf(content) || marker.content || `【${marker.name} 会在生成时展开】`,
-    markerType: textOf(identifier),
+    markerType,
+    content: placeholderOnly ? '' : textOf(content),
+    locked: true,
   };
+}
+
+function isNativePresetPlaceholder(targetWindow, prompt, identifier) {
+  const markerPrompt = getBuiltinMarkerPrompt(identifier, {});
+  if (!markerPrompt) return false;
+  if (prompt?.marker === true) return true;
+  const candidates = [targetWindow, targetWindow?.parent, globalThis].filter(Boolean);
+  for (const candidate of candidates) {
+    try {
+      if (typeof candidate?.isPresetPlaceholderPrompt === 'function') return Boolean(candidate.isPresetPlaceholderPrompt(prompt));
+    } catch (_) {}
+  }
+  return !textOf(prompt?.content);
+}
+
+function getNativePlaceholderMarker(targetWindow, prompt, context) {
+  const identifier = textOf(prompt?.identifier || prompt?.id);
+  if (!isNativePresetPlaceholder(targetWindow, prompt, identifier)) return null;
+  return getBuiltinMarkerPrompt(identifier, context);
 }
 
 export function isPresetPromptEnabled(prompt, enabledMap) {
@@ -328,9 +362,26 @@ export async function collectComponentImportCandidates({ targetWindow, context, 
 }
 
 export function collectPresetImportGroups({ targetWindow, context, presetName = '' }) {
-  const selected = textOf(presetName) || getCurrentPresetNameSafe(targetWindow, context) || getPresetNamesSafe(targetWindow, context)[0] || '';
+  const currentPreset = getCurrentPresetNameSafe(targetWindow, context);
+  const selected = textOf(presetName) || currentPreset || getPresetNamesSafe(targetWindow, context)[0] || '';
   if (!selected) return [];
   const candidates = [];
+  const inUsePreset = (!textOf(presetName) || selected === currentPreset) ? getInUsePresetSafe(targetWindow) : null;
+  if (inUsePreset) {
+    inUsePreset.prompts.forEach((rawPrompt, sourceOrder) => {
+      const identifier = textOf(rawPrompt?.identifier || rawPrompt?.id || rawPrompt?.name);
+      const markerPrompt = getNativePlaceholderMarker(targetWindow, rawPrompt, context);
+      const prompt = markerPrompt || rawPrompt;
+      addImportCandidate(candidates, `预设：${selected}`, selected, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content, rawPrompt?.enabled !== false, {
+        sourceOrder,
+        sourceUid: prompt?.identifier || prompt?.id || identifier,
+        role: prompt?.role || rawPrompt?.role,
+        markerType: prompt?.markerType,
+        locked: Boolean(prompt?.locked || prompt?.markerType),
+      });
+    });
+    return [{ scope: SOURCE_PRESET, group: `预设：${selected}`, source: selected, loaded: true, items: candidates }];
+  }
   let preset = null;
   try { preset = targetWindow?.TavernHelper?.getPreset?.(selected) || null; } catch (_) {}
   const prompts = Array.isArray(preset?.prompts) ? preset.prompts : [];
@@ -352,6 +403,7 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
       sourceUid: prompt?.identifier || prompt?.id,
       role: prompt?.role,
       markerType: prompt?.markerType,
+      locked: Boolean(prompt?.locked || prompt?.markerType),
     });
   });
 

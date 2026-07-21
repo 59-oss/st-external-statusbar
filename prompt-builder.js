@@ -69,7 +69,7 @@ function getRuntimeMarkerContent(markerType, context) {
   }
 }
 
-export function createRuntimePromptDiagnostics({ context, promptSourceItems } = {}) {
+export function createRuntimePromptDiagnostics({ context, promptSourceItems, runtimeInsertions } = {}) {
   const markerTypes = (Array.isArray(promptSourceItems) ? promptSourceItems : [])
     .map((item) => textOf(item?.markerType))
     .filter(Boolean);
@@ -83,6 +83,7 @@ export function createRuntimePromptDiagnostics({ context, promptSourceItems } = 
       personaLength: getCharacterField(context, 'persona').length,
     },
     selectedPromptMarkers: [...new Set(markerTypes)],
+    runtimeInsertions: runtimeInsertions || null,
   };
 }
 
@@ -105,6 +106,46 @@ function getPromptIdentifier(prompt) {
   return textOf(prompt?.identifier || prompt?.id || prompt?.name);
 }
 
+const NATIVE_PRESET_MARKER_NAMES = new Map([
+  ['world info (before)', 'worldInfoBefore'],
+  ['world info (after)', 'worldInfoAfter'],
+  ['char description', 'charDescription'],
+  ['char personality', 'charPersonality'],
+  ['scenario', 'scenario'],
+  ['persona description', 'personaDescription'],
+  ['chat examples', 'dialogueExamples'],
+  ['chat history', 'chatHistory'],
+]);
+
+function getNativePresetMarkerType(value) {
+  const identifier = typeof value === 'object' ? getPromptIdentifier(value) : textOf(value);
+  if ([
+    'worldInfoBefore',
+    'worldInfoAfter',
+    'charDescription',
+    'charPersonality',
+    'scenario',
+    'personaDescription',
+    'dialogueExamples',
+    'chatHistory',
+  ].includes(identifier)) return identifier;
+
+  const name = typeof value === 'object' ? textOf(value?.name).toLowerCase() : '';
+  return NATIVE_PRESET_MARKER_NAMES.get(name) || '';
+}
+
+function createNativePresetMarkerPrompt(identifier) {
+  const clean = textOf(identifier);
+  const markerType = getNativePresetMarkerType(clean);
+  if (!markerType) return null;
+  return {
+    identifier: markerType,
+    role: 'system',
+    marker: true,
+    content: '',
+  };
+}
+
 function getActivePresetPromptOrder(preset) {
   const lists = Array.isArray(preset?.prompt_order) ? preset.prompt_order : [];
   const preferred = lists.find((list) => String(list?.character_id) === '100001' && Array.isArray(list?.order));
@@ -119,11 +160,12 @@ function getOrderedEnabledPrompts(preset) {
   const ordered = [];
   for (const orderItem of orderList) {
     const id = textOf(orderItem?.identifier);
-    const prompt = promptMap.get(id);
+    const prompt = promptMap.get(id) || createNativePresetMarkerPrompt(id);
     if (id) used.add(id);
     if (!prompt || orderItem?.enabled === false) continue;
     ordered.push(prompt);
   }
+  if (orderList.length) return ordered;
   for (const prompt of prompts) {
     const id = getPromptIdentifier(prompt);
     if (!id || used.has(id) || prompt?.enabled === false) continue;
@@ -166,6 +208,109 @@ function applySubstituteParams(content, substituteParams) {
   }
 }
 
+function getActiveWorldbookNames(targetWindow) {
+  const names = [];
+  const seen = new Set();
+  const add = (name) => {
+    const clean = textOf(name);
+    if (!clean || seen.has(clean)) return;
+    seen.add(clean);
+    names.push(clean);
+  };
+  try {
+    const globalNames = targetWindow?.TavernHelper?.getGlobalWorldbookNames?.() || [];
+    (Array.isArray(globalNames) ? globalNames : [globalNames]).forEach(add);
+  } catch {}
+  try {
+    const charBooks = targetWindow?.TavernHelper?.getCharWorldbookNames?.('current') || {};
+    add(charBooks.primary);
+    (Array.isArray(charBooks.additional) ? charBooks.additional : []).forEach(add);
+  } catch {}
+  try {
+    add(targetWindow?.TavernHelper?.getChatWorldbookName?.('current'));
+  } catch {}
+  return names;
+}
+
+async function loadWorldbookEntries(targetWindow, name) {
+  try {
+    if (typeof targetWindow?.SillyTavern?.loadWorldInfo === 'function') {
+      const book = await targetWindow.SillyTavern.loadWorldInfo(name);
+      const entries = book?.entries || book;
+      return Array.isArray(entries) ? entries : Object.values(entries || {});
+    }
+  } catch {}
+  try {
+    if (typeof targetWindow?.TavernHelper?.getWorldbook === 'function') {
+      const book = await targetWindow.TavernHelper.getWorldbook(name);
+      return Array.isArray(book) ? book : Object.values(book?.entries || book || {});
+    }
+  } catch {}
+  return [];
+}
+
+function isWorldbookEntryEnabled(entry) {
+  if (!entry) return false;
+  if (typeof entry.enabled === 'boolean') return entry.enabled;
+  return entry.disable !== true;
+}
+
+function getWorldbookInsertionBucket(entry) {
+  const position = entry?.position;
+  if (position === 0 || textOf(position) === 'before_char' || textOf(position) === 'before_character_definition') return 'before';
+  if (position === 1 || textOf(position) === 'after_char' || textOf(position) === 'after_character_definition') return 'after';
+  if (typeof position === 'object' && position) {
+    const type = textOf(position.type);
+    if (type === 'before_character_definition' || type === 'before_char') return 'before';
+    if (type === 'after_character_definition' || type === 'after_char') return 'after';
+    if (type === 'at_depth') return 'atDepth';
+  }
+  return 'after';
+}
+
+async function collectRuntimeWorldbookInserts(targetWindow, substituteParams) {
+  const buckets = { before: [], after: [], atDepth: [] };
+  for (const name of getActiveWorldbookNames(targetWindow)) {
+    const entries = await loadWorldbookEntries(targetWindow, name);
+    for (const entry of entries) {
+      if (!isWorldbookEntryEnabled(entry)) continue;
+      const content = textOf(applySubstituteParams(entry?.content, substituteParams));
+      if (!content) continue;
+      buckets[getWorldbookInsertionBucket(entry)].push(content);
+    }
+  }
+  return buckets;
+}
+
+function replaceRuntimeMarkerMessages(messages, markerType, role, contents) {
+  const insertMessages = contents.map(textOf).filter(Boolean).map((content) => ({ role, content }));
+  let inserted = 0;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.runtimeMarkerType !== markerType) continue;
+    const replacements = inserted ? [] : insertMessages;
+    messages.splice(index, 1, ...replacements);
+    inserted += replacements.length;
+  }
+  return inserted;
+}
+
+async function applyRuntimeTemplateInsertions(messages, { targetWindow, context, substituteParams }) {
+  const worldbooks = await collectRuntimeWorldbookInserts(targetWindow, substituteParams);
+  const beforeWorldbook = worldbooks.before.join('\n\n');
+  const afterWorldbook = [...worldbooks.after, ...worldbooks.atDepth].join('\n\n');
+  const insertions = {
+    charInfoLength: getCharacterField(context, 'description').length,
+    userInfoLength: getRuntimeMarkerContent('personaDescription', context).length,
+    worldbookBeforeCount: worldbooks.before.length,
+    worldbookAfterCount: worldbooks.after.length,
+    worldbookAtDepthCount: worldbooks.atDepth.length,
+    insertedMessageCount: 0,
+  };
+  insertions.insertedMessageCount += replaceRuntimeMarkerMessages(messages, 'worldInfoBefore', 'system', [beforeWorldbook]);
+  insertions.insertedMessageCount += replaceRuntimeMarkerMessages(messages, 'worldInfoAfter', 'system', [afterWorldbook]);
+  return insertions;
+}
+
 function isWorldbookSourceItem(item) {
   return textOf(item?.scope) === '世界书';
 }
@@ -186,11 +331,19 @@ function buildPromptSourceMessages(promptSourceItems, { context, substituteParam
     if (isWorldbookSourceItem(item) && hasWorldInfoMarker) continue;
 
     if (isWorldInfoMarker(markerType)) {
-      if (worldbookInserted) continue;
-      worldbookInserted = true;
-      for (const worldbookItem of worldbookItems) {
-        const content = textOf(applySubstituteParams(worldbookItem?.content, substituteParams));
-        if (content) messages.push({ role: normalizeRole(worldbookItem?.role), content });
+      if (item?.locked) {
+        messages.push({ role: normalizeRole(item?.role), content: '', runtimeMarkerType: markerType });
+        continue;
+      }
+      if (worldbookItems.length) {
+        if (worldbookInserted) continue;
+        worldbookInserted = true;
+        for (const worldbookItem of worldbookItems) {
+          const content = textOf(applySubstituteParams(worldbookItem?.content, substituteParams));
+          if (content) messages.push({ role: normalizeRole(worldbookItem?.role), content });
+        }
+      } else {
+        messages.push({ role: normalizeRole(item?.role), content: '', runtimeMarkerType: markerType });
       }
       continue;
     }
@@ -211,7 +364,7 @@ function buildPromptSourceMessages(promptSourceItems, { context, substituteParam
 function buildPresetPromptSourceItems(preset, { context, latestMessage, substituteParams }) {
   return getOrderedEnabledPrompts(preset).map((prompt) => {
     const identifier = getPromptIdentifier(prompt);
-    const markerType = prompt?.marker ? identifier : '';
+    const markerType = getNativePresetMarkerType(prompt);
     return {
       scope: '预设',
       role: prompt?.role,
@@ -241,7 +394,7 @@ function buildPluginTaskMessage({ taskPrompt, components, substituteParams }) {
   ].join('\n');
 }
 
-export function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, promptSourceItems, substituteParams }) {
+export async function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, promptSourceItems, substituteParams }) {
   const hasSelectedPromptSources = Array.isArray(promptSourceItems) && promptSourceItems.length > 0;
   const preset = hasSelectedPromptSources ? null : getCurrentPreset(targetWindow, context);
   const activePromptSourceItems = hasSelectedPromptSources
@@ -253,10 +406,13 @@ export function buildExternalStatusbarMessages({ targetWindow, context, latestMe
     role: 'system',
     content: '你是 SillyTavern 的外置文末状态栏生成器。你只生成文末状态栏/文末组件，不续写正文。',
   }];
-  return [
+  const messages = [
     ...fallback,
     ...promptMessages,
     ...(!hasSelectedPromptSources && !hasChatHistoryMarker ? getRecentChatMessages(context?.chat) : []),
     { role: 'user', content: buildPluginTaskMessage({ taskPrompt, components, substituteParams }) },
   ];
+  messages.promptSourceItems = activePromptSourceItems;
+  messages.runtimeInsertions = await applyRuntimeTemplateInsertions(messages, { targetWindow, context, substituteParams });
+  return messages;
 }

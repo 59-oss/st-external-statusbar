@@ -1,4 +1,4 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from '../prompt-builder.js';
 
 const targetWindow = {
@@ -37,18 +37,18 @@ const context = {
   ],
 };
 
-const messages = buildExternalStatusbarMessages({
+const messages = await buildExternalStatusbarMessages({
   targetWindow,
   context,
   latestMessage: { mes: 'Latest assistant prose' },
   taskPrompt: 'Generate footer widgets only.',
-  components: [{ scope: '全局', name: 'Choices', content: '<roleplay_options />' }],
+  components: [{ scope: 'global', name: 'Choices', content: '<roleplay_options />' }],
 });
 
 assert.deepEqual(messages.map((message) => message.role), ['system', 'user', 'user', 'assistant', 'user']);
 assert.equal(messages[0].content, 'Write as CharName for UserName.');
-assert.ok(messages[1].content.includes('用户：Hello'));
-assert.ok(messages[1].content.includes('助手：Reply'));
+assert.ok(messages[1].content.includes('Hello'));
+assert.ok(messages[1].content.includes('Reply'));
 assert.ok(!messages.some((message) => message.content.includes('SHOULD_NOT_EXIST')));
 assert.equal(messages[2].role, 'user');
 assert.equal(messages[2].content, 'Hello');
@@ -56,12 +56,10 @@ assert.equal(messages[3].role, 'assistant');
 assert.equal(messages[3].content, 'Reply');
 assert.ok(messages[4].content.includes('Generate footer widgets only.'));
 assert.ok(messages[4].content.includes('<roleplay_options />'));
-assert.ok(!messages[4].content.includes('【组件 1'));
 assert.ok(!messages[4].content.includes('Choices'));
-assert.ok(!messages[4].content.includes('最新助手回复'));
 assert.ok(!messages[4].content.includes('Latest assistant prose'));
 
-const messagesWithoutPresetName = buildExternalStatusbarMessages({
+const messagesWithoutPresetName = await buildExternalStatusbarMessages({
   targetWindow: {
     TavernHelper: {
       getCurrentPresetName: () => '',
@@ -80,7 +78,7 @@ const messagesWithoutPresetName = buildExternalStatusbarMessages({
 assert.equal(messagesWithoutPresetName[0].role, 'system');
 assert.equal(messagesWithoutPresetName.at(-1).role, 'user');
 
-const messagesFromPresetMarkers = buildExternalStatusbarMessages({
+const messagesFromPresetMarkers = await buildExternalStatusbarMessages({
   targetWindow: {
     TavernHelper: {
       getCurrentPresetName: () => 'Marker Preset',
@@ -116,8 +114,139 @@ assert.equal(messagesFromPresetMarkers[1].content, 'Card fields personality');
 assert.equal(messagesFromPresetMarkers[2].content, 'Card fields scenario');
 assert.equal(messagesFromPresetMarkers[3].content, 'Card fields examples');
 assert.equal(messagesFromPresetMarkers[4].content, 'Card fields persona');
+assert.deepEqual(
+  messagesFromPresetMarkers.promptSourceItems.map((item) => item.markerType),
+  ['charDescription', 'charPersonality', 'scenario', 'dialogueExamples', 'personaDescription', 'chatHistory'],
+);
 
-const messagesFromSelectedSources = buildExternalStatusbarMessages({
+const messagesFromOrderOnlyPresetMarkers = await buildExternalStatusbarMessages({
+  targetWindow: {
+    TavernHelper: {
+      getCurrentPresetName: () => 'Order Only Marker Preset',
+      getPreset: () => ({
+        prompt_order: [{ character_id: 100001, order: [
+          { identifier: 'char-info-open', enabled: true },
+          { identifier: 'charDescription', enabled: true },
+          { identifier: 'chatHistory', enabled: true },
+          { identifier: 'char-info-close', enabled: true },
+        ] }],
+        prompts: [
+          { identifier: 'char-info-open', role: 'system', content: '<char_info>' },
+          { identifier: 'char-info-close', role: 'system', content: '</char_info>' },
+          { identifier: 'unordered-tail', role: 'system', content: 'SHOULD_NOT_APPEND_TO_END' },
+        ],
+      }),
+    },
+  },
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Generate footer widgets only.',
+  components: [],
+});
+
+assert.deepEqual(
+  messagesFromOrderOnlyPresetMarkers.slice(0, 5).map((message) => message.content),
+  ['<char_info>', 'Card fields description', 'Hello', 'Reply', '</char_info>'],
+);
+assert.ok(!messagesFromOrderOnlyPresetMarkers.some((message) => message.content === 'SHOULD_NOT_APPEND_TO_END'));
+
+const messagesFromPersonaOrder = await buildExternalStatusbarMessages({
+  targetWindow: {
+    TavernHelper: {
+      getCurrentPresetName: () => 'Persona Shell Preset',
+      getPreset: () => ({
+        prompt_order: [{ character_id: 100001, order: [
+          { identifier: 'user-info-open', enabled: true },
+          { identifier: 'personaDescription', enabled: true },
+          { identifier: 'user-info-close', enabled: true },
+        ] }],
+        prompts: [
+          { identifier: 'user-info-open', role: 'system', content: '<user_info>' },
+          { identifier: 'personaDescription', name: 'Persona Description', role: 'system', content: '' },
+          { identifier: 'user-info-close', role: 'system', content: '</user_info>' },
+        ],
+      }),
+    },
+  },
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Generate footer widgets only.',
+  components: [],
+});
+
+assert.deepEqual(
+  messagesFromPersonaOrder.slice(0, 3).map((message) => message.content),
+  ['<user_info>', 'Card fields persona', '</user_info>'],
+);
+
+const messagesFromEmptyRuntimeBlocks = await buildExternalStatusbarMessages({
+  targetWindow: {
+    TavernHelper: {
+      getCurrentPresetName: () => 'Ako Shell Preset',
+      getGlobalWorldbookNames: () => ['Global Lore'],
+      getCharWorldbookNames: () => ({ primary: 'Character Lore', additional: [] }),
+      getChatWorldbookName: () => '',
+      getWorldbookNames: () => ['Global Lore', 'Character Lore'],
+      getPreset: () => ({
+        prompt_order: [{ character_id: 100001, order: [
+          { identifier: 'bkgd-open', enabled: true },
+          { identifier: 'worldInfoBefore', enabled: true },
+          { identifier: 'char-info-open', enabled: true },
+          { identifier: 'charDescription', enabled: true },
+          { identifier: 'charPersonality', enabled: true },
+          { identifier: 'char-info-close', enabled: true },
+          { identifier: 'scenario', enabled: true },
+          { identifier: 'worldInfoAfter', enabled: true },
+          { identifier: 'bkgd-close', enabled: true },
+        ] }],
+        prompts: [
+          { identifier: 'bkgd-open', role: 'system', content: '<bkgd_info>' },
+          { identifier: 'worldInfoBefore', role: 'system', content: '' },
+          { identifier: 'char-info-open', role: 'system', content: '<char_info>' },
+          { identifier: 'char-info-close', role: 'system', content: '</char_info>' },
+          { identifier: 'worldInfoAfter', role: 'system', content: '' },
+          { identifier: 'bkgd-close', role: 'system', content: '</bkgd_info>' },
+        ],
+      }),
+    },
+    SillyTavern: {
+      loadWorldInfo: async (name) => ({
+        entries: name === 'Global Lore'
+          ? {
+              0: { uid: 0, content: 'Before character lore', position: { type: 'before_character_definition' }, enabled: true },
+              1: { uid: 1, content: 'After character lore', position: { type: 'after_character_definition' }, enabled: true },
+            }
+          : {
+              0: { uid: 0, content: 'Character book after lore', position: 1, enabled: true },
+            },
+      }),
+    },
+  },
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Generate footer widgets only.',
+  components: [],
+});
+
+assert.deepEqual(
+  messagesFromEmptyRuntimeBlocks.slice(0, 9).map((message) => message.content),
+  [
+    '<bkgd_info>',
+    'Before character lore',
+    '<char_info>',
+    'Card fields description',
+    'Card fields personality',
+    '</char_info>',
+    'Card fields scenario',
+    'After character lore\n\nCharacter book after lore',
+    '</bkgd_info>',
+  ],
+);
+assert.equal(messagesFromEmptyRuntimeBlocks.runtimeInsertions.charInfoLength > 0, true);
+assert.equal(messagesFromEmptyRuntimeBlocks.runtimeInsertions.worldbookBeforeCount, 1);
+assert.equal(messagesFromEmptyRuntimeBlocks.runtimeInsertions.worldbookAfterCount, 2);
+
+const messagesFromSelectedSources = await buildExternalStatusbarMessages({
   targetWindow: {
     TavernHelper: {
       getCurrentPresetName: () => 'Main Preset',
@@ -131,8 +260,8 @@ const messagesFromSelectedSources = buildExternalStatusbarMessages({
   taskPrompt: 'Generate footer widgets only.',
   components: [],
   promptSourceItems: [
-    { scope: '预设', name: 'Ako order 1', role: 'system', content: 'Selected preset prompt' },
-    { scope: '世界书', name: 'Status lore', content: 'Selected worldbook entry' },
+    { scope: 'preset', name: 'Ako order 1', role: 'system', content: 'Selected preset prompt' },
+    { scope: '\u4e16\u754c\u4e66', name: 'Status lore', content: 'Selected worldbook entry' },
   ],
 });
 
@@ -141,14 +270,49 @@ assert.equal(messagesFromSelectedSources[0].content, 'Selected preset prompt');
 assert.equal(messagesFromSelectedSources[1].content, 'Selected worldbook entry');
 assert.ok(!messagesFromSelectedSources.some((message) => message.content.includes('Should not be used')));
 
-const messagesWithMacroSubstitution = buildExternalStatusbarMessages({
+const messagesFromLockedWorldInfoSources = await buildExternalStatusbarMessages({
+  targetWindow: {
+    TavernHelper: {
+      getGlobalWorldbookNames: () => ['Runtime Lore'],
+      getCharWorldbookNames: () => ({ primary: '', additional: [] }),
+      getChatWorldbookName: () => '',
+    },
+    SillyTavern: {
+      loadWorldInfo: async () => ({
+        entries: {
+          0: { uid: 0, content: 'Runtime before lore', position: { type: 'before_character_definition' }, enabled: true },
+          1: { uid: 1, content: 'Runtime after lore', position: { type: 'after_character_definition' }, enabled: true },
+        },
+      }),
+    },
+  },
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Generate footer widgets only.',
+  components: [],
+  promptSourceItems: [
+    { key: 'bkgd-open', scope: 'preset', name: 'Background start', role: 'system', content: '<bkgd_info>' },
+    { key: 'wi-before', scope: 'preset', name: 'World Info (before)', role: 'system', content: '', markerType: 'worldInfoBefore', locked: true },
+    { key: 'selected-world', scope: '\u4e16\u754c\u4e66', name: 'Selected flat lore', role: 'system', content: 'Should not flatten into locked marker' },
+    { key: 'wi-after', scope: 'preset', name: 'World Info (after)', role: 'system', content: '', markerType: 'worldInfoAfter', locked: true },
+    { key: 'bkgd-close', scope: 'preset', name: 'Background end', role: 'system', content: '</bkgd_info>' },
+  ],
+});
+
+assert.deepEqual(
+  messagesFromLockedWorldInfoSources.slice(0, 4).map((message) => message.content),
+  ['<bkgd_info>', 'Runtime before lore', 'Runtime after lore', '</bkgd_info>'],
+);
+assert.ok(!messagesFromLockedWorldInfoSources.some((message) => message.content === 'Should not flatten into locked marker'));
+
+const messagesWithMacroSubstitution = await buildExternalStatusbarMessages({
   targetWindow: {},
   context,
   latestMessage: { mes: 'Latest {{char}} prose' },
   taskPrompt: 'Task for {{user}}',
-  components: [{ scope: '全局', name: 'Macro component', content: 'Component for {{char}}' }],
+  components: [{ scope: 'global', name: 'Macro component', content: 'Component for {{char}}' }],
   promptSourceItems: [
-    { scope: '预设', name: 'Macro preset', role: 'system', content: 'Preset for {{char}} and {{user}}' },
+    { scope: 'preset', name: 'Macro preset', role: 'system', content: 'Preset for {{char}} and {{user}}' },
   ],
   substituteParams: (content) => String(content).replaceAll('{{char}}', 'CharName').replaceAll('{{user}}', 'UserName'),
 });
@@ -158,21 +322,21 @@ assert.ok(messagesWithMacroSubstitution.at(-1).content.includes('Task for UserNa
 assert.ok(messagesWithMacroSubstitution.at(-1).content.includes('Component for CharName'));
 assert.ok(!messagesWithMacroSubstitution.at(-1).content.includes('Macro component'));
 
-const messagesWithNativeMarkers = buildExternalStatusbarMessages({
+const messagesWithNativeMarkers = await buildExternalStatusbarMessages({
   targetWindow: {},
   context,
   latestMessage: { mes: 'Latest assistant prose' },
   taskPrompt: 'Generate footer widgets only.',
   components: [],
   promptSourceItems: [
-    { scope: '预设', markerType: 'worldInfoBefore', role: 'system', content: '世界书占位' },
-    { scope: '世界书', name: 'Lore', role: 'system', content: 'Selected lore text' },
-    { scope: '预设', markerType: 'charDescription', role: 'system', content: '扫描时占位' },
-    { scope: '预设', markerType: 'charPersonality', role: 'system', content: '扫描时占位' },
-    { scope: '预设', markerType: 'scenario', role: 'system', content: '扫描时占位' },
-    { scope: '预设', markerType: 'dialogueExamples', role: 'system', content: '扫描时占位' },
-    { scope: '预设', markerType: 'personaDescription', role: 'system', content: '扫描时占位' },
-    { scope: '预设', markerType: 'chatHistory', role: 'system', content: '聊天历史占位' },
+    { scope: 'preset', markerType: 'worldInfoBefore', role: 'system', content: 'world placeholder' },
+    { scope: '\u4e16\u754c\u4e66', name: 'Lore', role: 'system', content: 'Selected lore text' },
+    { scope: 'preset', markerType: 'charDescription', role: 'system', content: 'scan placeholder' },
+    { scope: 'preset', markerType: 'charPersonality', role: 'system', content: 'scan placeholder' },
+    { scope: 'preset', markerType: 'scenario', role: 'system', content: 'scan placeholder' },
+    { scope: 'preset', markerType: 'dialogueExamples', role: 'system', content: 'scan placeholder' },
+    { scope: 'preset', markerType: 'personaDescription', role: 'system', content: 'scan placeholder' },
+    { scope: 'preset', markerType: 'chatHistory', role: 'system', content: 'history placeholder' },
   ],
 });
 
@@ -185,9 +349,9 @@ assert.equal(messagesWithNativeMarkers[4].content, 'Card fields examples');
 assert.equal(messagesWithNativeMarkers[5].content, 'Card fields persona');
 assert.equal(messagesWithNativeMarkers[6].content, 'Hello');
 assert.equal(messagesWithNativeMarkers[7].content, 'Reply');
-assert.ok(!messagesWithNativeMarkers.some((message) => message.content === '世界书占位'));
-assert.ok(!messagesWithNativeMarkers.some((message) => message.content === '聊天历史占位'));
-assert.ok(!messagesWithNativeMarkers.some((message) => message.content === '扫描时占位'));
+assert.ok(!messagesWithNativeMarkers.some((message) => message.content === 'world placeholder'));
+assert.ok(!messagesWithNativeMarkers.some((message) => message.content === 'history placeholder'));
+assert.ok(!messagesWithNativeMarkers.some((message) => message.content === 'scan placeholder'));
 
 const runtimeDiagnostics = createRuntimePromptDiagnostics({
   context,

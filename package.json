@@ -1,6 +1,6 @@
 {
   "name": "st-external-statusbar",
-  "version": "0.3.32",
+  "version": "0.3.46",
   "private": false,
   "type": "module",
   "description": "SillyTavern third-party extension for external statusbar generation.",

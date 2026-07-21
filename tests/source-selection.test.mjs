@@ -64,3 +64,16 @@ const selectedEmptyMarkerItems = collectSelectedPromptSourceItems([
 ], {});
 
 assert.deepEqual(selectedEmptyMarkerItems.map((item) => item.name), ['Char Description']);
+
+const selectedLockedMarkerItems = collectSelectedPromptSourceItems([
+  {
+    loaded: true,
+    items: [
+      { key: 'world_before_marker', scope: 'preset', name: 'World Info (before)', markerType: 'worldInfoBefore', role: 'system', content: '', enabled: true, locked: true },
+    ],
+  },
+], {
+  world_before_marker: false,
+});
+
+assert.deepEqual(selectedLockedMarkerItems.map((item) => item.markerType), ['worldInfoBefore']);

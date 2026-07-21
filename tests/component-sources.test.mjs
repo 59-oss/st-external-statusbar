@@ -19,10 +19,12 @@ const targetWindow = {
     getPresetNames: () => ['Ako 预设', '不应扫描的旧预设'],
     getPreset: (name) => name === 'Ako 预设' ? {
       prompt_order: [{ character_id: 100001, order: [
+        { identifier: 'worldInfoBefore', enabled: true },
         { identifier: 'statusbar-format', enabled: false },
         { identifier: 'empty', enabled: true },
       ] }],
       prompts: [
+        { identifier: 'worldInfoBefore', name: 'World Info (before)', marker: true, content: '' },
         { id: 'statusbar-format', name: '状态栏格式', content: '<status>HP: {{value}}</status>' },
         { id: 'empty', name: '空条目', content: '' },
       ],
@@ -57,7 +59,11 @@ const presetGroups = collectPresetImportGroups({ targetWindow, context });
 const worldbookGroups = collectWorldbookImportGroups({ targetWindow, context });
 assert.equal(worldbookReadCount, 0);
 assert.equal(presetGroups[0].loaded, true);
-assert.equal(presetGroups[0].items[0].enabled, false);
+assert.equal(presetGroups[0].items[0].name, 'World Info (before)');
+assert.equal(presetGroups[0].items[0].markerType, 'worldInfoBefore');
+assert.equal(presetGroups[0].items[0].locked, true);
+assert.equal(presetGroups[0].items[0].content, '');
+assert.equal(presetGroups[0].items[1].enabled, false);
 assert.deepEqual(presetGroups.map((group) => group.source), ['Ako 预设']);
 assert.equal(presetGroups.length, 1);
 assert.deepEqual(collectPresetImportGroups({ targetWindow, context, presetName: '不应扫描的旧预设' }).map((group) => group.source), ['不应扫描的旧预设']);
@@ -65,6 +71,30 @@ assert.equal(worldbookGroups[0].loaded, false);
 assert.deepEqual(worldbookGroups.map((group) => group.source), ['状态栏世界书', '角色绑定世界书', '聊天绑定世界书', '未启用世界书']);
 assert.deepEqual(worldbookGroups.map((group) => group.categoryLabel), ['全局世界书', '角色世界书', '聊天世界书', '未启用世界书']);
 assert.ok(worldbookGroups.every((group) => group.group === group.source));
+
+const inUsePresetGroups = collectPresetImportGroups({
+  targetWindow: {
+    getPreset: (name) => name === 'in_use' ? {
+      prompts: [
+        { id: 'style-start', name: 'Style start', content: '<style>' },
+        { id: 'worldInfoBefore', name: 'World Info (before)', content: '' },
+        { id: 'charDescription', name: 'Char Description', content: '' },
+        { id: 'style-end', name: 'Style end', content: '</style>', enabled: false },
+      ],
+    } : null,
+    isPresetPlaceholderPrompt: (prompt) => ['worldInfoBefore', 'charDescription'].includes(prompt?.id),
+    getPresetManager: () => ({ getSelectedPresetName: () => 'In Use Preset' }),
+    TavernHelper: {
+      getPresetNames: () => ['In Use Preset'],
+      getPreset: () => null,
+    },
+  },
+  context,
+});
+assert.deepEqual(inUsePresetGroups[0].items.map((item) => item.name), ['Style start', 'World Info (before)', 'Char Description', 'Style end']);
+assert.deepEqual(inUsePresetGroups[0].items.map((item) => Boolean(item.locked)), [false, true, true, false]);
+assert.deepEqual(inUsePresetGroups[0].items.map((item) => item.markerType || ''), ['', 'worldInfoBefore', 'charDescription', '']);
+assert.equal(inUsePresetGroups[0].items[3].enabled, false);
 
 const idBackedWorldbooks = collectWorldbookImportGroups({
   targetWindow: {

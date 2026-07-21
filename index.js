@@ -14,15 +14,15 @@ import {
   getCurrentPresetNameSafe,
   getPresetNamesSafe,
   normalizeComponent,
-} from './component-sources.js';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js';
-import { injectStatusbarText } from './inject-utils.js';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js';
-import { createPromptLog } from './prompt-log.js';
-import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js';
+} from './component-sources.js?ver=0.3.46';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.46';
+import { injectStatusbarText } from './inject-utils.js?ver=0.3.46';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.46';
+import { createPromptLog } from './prompt-log.js?ver=0.3.46';
+import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.46';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.40';
+const EXTENSION_VERSION = '0.3.46';
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -116,8 +116,9 @@ async function buildMessages(latestMessage) {
   const context = getContext();
   const components = getEnabledComponents();
   const promptSourceItems = await ensurePromptSourceItemsForGeneration();
-  lastRuntimeDiagnostics = createRuntimePromptDiagnostics({ context, promptSourceItems });
-  return buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt: settings.taskPrompt, components, promptSourceItems, substituteParams: context.substituteParams });
+  const messages = await buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt: settings.taskPrompt, components, promptSourceItems, substituteParams: context.substituteParams });
+  lastRuntimeDiagnostics = createRuntimePromptDiagnostics({ context, promptSourceItems, runtimeInsertions: messages.runtimeInsertions });
+  return messages;
 }
 
 function setGeneratingState(isGenerating) {
@@ -404,13 +405,14 @@ function getSourceSelectionStore() {
 }
 
 function getSourceSelection(item) {
+  if (item?.locked) return item.enabled !== false;
   const store = getSourceSelectionStore();
   if (Object.prototype.hasOwnProperty.call(store, item.key)) return store[item.key] !== false;
   return settings.sourceMode === SOURCE_MODE_PROMPT ? item.enabled !== false : false;
 }
 
 function setSourceSelection(item, checked) {
-  if (!item?.key) return;
+  if (!item?.key || item?.locked) return;
   getSourceSelectionStore()[item.key] = Boolean(checked);
   saveSettings();
 }
@@ -591,6 +593,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     if (!group.items.length) return '<div class="st-esg-empty st-esg-empty-small">没有可导入条目</div>';
     return group.items.map((item, itemIndex) => {
       const checked = getSourceSelection(item);
+      if (item.locked) return `<div class="st-esg-import-item st-esg-import-item-locked" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><label class="st-esg-checkbox"><i class="fa-solid fa-lock"></i><span>${escapeHtml(item.name)}</span></label><em>原生占位符</em></div>`;
       return `<div class="st-esg-import-item" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" ${checked ? 'checked' : ''} /><span>${escapeHtml(item.name)}</span></label><em>${checked ? modeInfo.checkedText : modeInfo.uncheckedText}</em></div>`;
     }).join('');
   };

@@ -4,6 +4,7 @@ export function syncPromptSelectionsFromGroups(groups, currentSelections = {}) {
     if (!group?.loaded || !Array.isArray(group.items)) continue;
     for (const item of group.items) {
       if (!item?.key) continue;
+      if (item?.locked) continue;
       nextSelections[item.key] = item.enabled !== false;
     }
   }
@@ -18,6 +19,10 @@ export function collectSelectedPromptSourceItems(groups, promptSelections = {}) 
     for (const item of group.items) {
       if (!item?.key) continue;
       if (!String(item?.content ?? '').trim() && !String(item?.markerType ?? '').trim()) continue;
+      if (item?.locked) {
+        if (item.enabled !== false) selected.push(item);
+        continue;
+      }
       const checked = Object.prototype.hasOwnProperty.call(store, item.key) ? store[item.key] !== false : item.enabled !== false;
       if (checked) selected.push(item);
     }
