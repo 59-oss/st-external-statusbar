@@ -96,6 +96,38 @@ assert.deepEqual(inUsePresetGroups[0].items.map((item) => Boolean(item.locked)),
 assert.deepEqual(inUsePresetGroups[0].items.map((item) => item.markerType || ''), ['', 'worldInfoBefore', 'charDescription', '']);
 assert.equal(inUsePresetGroups[0].items[3].enabled, false);
 
+const orderOnlyPresetGroups = collectPresetImportGroups({
+  targetWindow: {
+    getPresetManager: () => ({ getSelectedPresetName: () => 'Order Only Preset' }),
+    TavernHelper: {
+      getPresetNames: () => ['Order Only Preset'],
+      getPreset: () => ({
+        prompt_order: [{ character_id: 100001, order: [
+          { identifier: 'before-shell', enabled: true },
+          { identifier: 'worldInfoBefore', enabled: true },
+          { identifier: 'charDescription', enabled: true },
+          { identifier: 'worldInfoAfter', enabled: true },
+          { identifier: 'after-shell', enabled: true },
+        ] }],
+        prompts: [
+          { identifier: 'before-shell', role: 'system', content: '<bkgd_info>' },
+          { identifier: 'after-shell', role: 'system', content: '</bkgd_info>' },
+        ],
+      }),
+    },
+  },
+  context,
+});
+assert.deepEqual(
+  orderOnlyPresetGroups[0].items.map((item) => item.name),
+  ['before-shell', 'World Info (before)', 'Char Description', 'World Info (after)', 'after-shell'],
+);
+assert.deepEqual(
+  orderOnlyPresetGroups[0].items.map((item) => item.markerType || ''),
+  ['', 'worldInfoBefore', 'charDescription', 'worldInfoAfter', ''],
+);
+assert.deepEqual(orderOnlyPresetGroups[0].items.map((item) => Boolean(item.locked)), [false, true, true, true, false]);
+
 const idBackedWorldbooks = collectWorldbookImportGroups({
   targetWindow: {
     TavernHelper: {

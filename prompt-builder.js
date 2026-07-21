@@ -367,11 +367,53 @@ function buildPresetPromptSourceItems(preset, { context, latestMessage, substitu
     const markerType = getNativePresetMarkerType(prompt);
     return {
       scope: '预设',
+      sourceUid: identifier,
+      identifier,
+      name: prompt?.name || identifier,
       role: prompt?.role,
       markerType,
+      locked: Boolean(markerType),
       content: markerType ? '' : applySubstituteParams(replaceMacros(prompt?.content, { context, latestMessage }), substituteParams),
     };
   });
+}
+
+function getPromptSourceItemId(item) {
+  return textOf(item?.sourceUid || item?.identifier || item?.id || item?.name);
+}
+
+function mergeMissingPresetMarkers(promptSourceItems, preset, options) {
+  const selectedItems = Array.isArray(promptSourceItems) ? promptSourceItems : [];
+  if (!selectedItems.length || selectedItems.some((item) => textOf(item?.markerType))) return selectedItems;
+  const presetItems = buildPresetPromptSourceItems(preset, options);
+  if (!presetItems.some((item) => textOf(item?.markerType))) return selectedItems;
+
+  const selectedById = new Map();
+  selectedItems.forEach((item) => {
+    const id = getPromptSourceItemId(item);
+    if (id && !selectedById.has(id)) selectedById.set(id, item);
+  });
+
+  const used = new Set();
+  const merged = [];
+  presetItems.forEach((presetItem) => {
+    if (textOf(presetItem?.markerType)) {
+      merged.push(presetItem);
+      return;
+    }
+    const selected = selectedById.get(getPromptSourceItemId(presetItem));
+    if (selected) {
+      used.add(selected);
+      merged.push(selected);
+    } else if (textOf(presetItem?.content)) {
+      merged.push(presetItem);
+    }
+  });
+
+  selectedItems.forEach((item) => {
+    if (!used.has(item)) merged.push(item);
+  });
+  return merged;
 }
 
 function buildComponentText(components, substituteParams) {
@@ -396,9 +438,9 @@ function buildPluginTaskMessage({ taskPrompt, components, substituteParams }) {
 
 export async function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, promptSourceItems, substituteParams }) {
   const hasSelectedPromptSources = Array.isArray(promptSourceItems) && promptSourceItems.length > 0;
-  const preset = hasSelectedPromptSources ? null : getCurrentPreset(targetWindow, context);
+  const preset = getCurrentPreset(targetWindow, context);
   const activePromptSourceItems = hasSelectedPromptSources
-    ? promptSourceItems
+    ? mergeMissingPresetMarkers(promptSourceItems, preset, { context, latestMessage, substituteParams })
     : buildPresetPromptSourceItems(preset, { context, latestMessage, substituteParams });
   const promptMessages = buildPromptSourceMessages(activePromptSourceItems, { context, substituteParams });
   const hasChatHistoryMarker = activePromptSourceItems.some((item) => textOf(item?.markerType) === 'chatHistory');

@@ -270,6 +270,59 @@ assert.equal(messagesFromSelectedSources[0].content, 'Selected preset prompt');
 assert.equal(messagesFromSelectedSources[1].content, 'Selected worldbook entry');
 assert.ok(!messagesFromSelectedSources.some((message) => message.content.includes('Should not be used')));
 
+const messagesFromSelectedSourcesWithMissingMarkers = await buildExternalStatusbarMessages({
+  targetWindow: {
+    TavernHelper: {
+      getCurrentPresetName: () => 'Current Order Preset',
+      getPreset: () => ({
+        prompt_order: [{ character_id: 100001, order: [
+          { identifier: 'bkgd-open', enabled: true },
+          { identifier: 'worldInfoBefore', enabled: true },
+          { identifier: 'char-info-open', enabled: true },
+          { identifier: 'charDescription', enabled: true },
+          { identifier: 'char-info-close', enabled: true },
+          { identifier: 'worldInfoAfter', enabled: true },
+          { identifier: 'bkgd-close', enabled: true },
+        ] }],
+        prompts: [
+          { identifier: 'bkgd-open', role: 'system', content: '<bkgd_info>' },
+          { identifier: 'char-info-open', role: 'system', content: '<char_info>' },
+          { identifier: 'char-info-close', role: 'system', content: '</char_info>' },
+          { identifier: 'bkgd-close', role: 'system', content: '</bkgd_info>' },
+        ],
+      }),
+      getGlobalWorldbookNames: () => ['Runtime Lore'],
+      getCharWorldbookNames: () => ({ primary: '', additional: [] }),
+      getChatWorldbookName: () => '',
+    },
+    SillyTavern: {
+      loadWorldInfo: async () => ({
+        entries: {
+          0: { uid: 0, content: 'Runtime before lore', position: { type: 'before_character_definition' }, enabled: true },
+          1: { uid: 1, content: 'Runtime after lore', position: { type: 'after_character_definition' }, enabled: true },
+        },
+      }),
+    },
+  },
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Generate footer widgets only.',
+  components: [],
+  promptSourceItems: [
+    { scope: 'preset', name: 'Only selected static prompt', role: 'system', content: 'Selected static prompt' },
+  ],
+});
+
+assert.deepEqual(
+  messagesFromSelectedSourcesWithMissingMarkers.slice(0, 7).map((message) => message.content),
+  ['<bkgd_info>', 'Runtime before lore', '<char_info>', 'Card fields description', '</char_info>', 'Runtime after lore', '</bkgd_info>'],
+);
+assert.equal(messagesFromSelectedSourcesWithMissingMarkers.some((message) => message.content === 'Selected static prompt'), true);
+assert.deepEqual(
+  messagesFromSelectedSourcesWithMissingMarkers.promptSourceItems.slice(0, 7).map((item) => item.markerType || ''),
+  ['', 'worldInfoBefore', '', 'charDescription', '', 'worldInfoAfter', ''],
+);
+
 const messagesFromLockedWorldInfoSources = await buildExternalStatusbarMessages({
   targetWindow: {
     TavernHelper: {
