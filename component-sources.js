@@ -190,7 +190,7 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
 export function collectWorldbookImportGroups({ targetWindow, context, selectedWorldNames = [] }) {
   return getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames).map((worldbook) => ({
     scope: SOURCE_WORLDBOOK,
-    group: `${worldbook.categoryLabel}：${worldbook.name}`,
+    group: worldbook.name,
     source: worldbook.name,
     category: worldbook.category,
     categoryLabel: worldbook.categoryLabel,

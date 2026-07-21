@@ -57,6 +57,7 @@ assert.deepEqual(collectPresetImportGroups({ targetWindow, context, presetName: 
 assert.equal(worldbookGroups[0].loaded, false);
 assert.deepEqual(worldbookGroups.map((group) => group.source), ['角色绑定世界书', '聊天绑定世界书', '状态栏世界书', '未启用世界书']);
 assert.deepEqual(worldbookGroups.map((group) => group.categoryLabel), ['角色世界书', '聊天世界书', '全局世界书', '未启用世界书']);
+assert.ok(worldbookGroups.every((group) => group.group === group.source));
 
 const lazyWorldbookItems = await collectWorldbookImportCandidates(targetWindow, '状态栏世界书');
 assert.equal(worldbookReadCount, 1);

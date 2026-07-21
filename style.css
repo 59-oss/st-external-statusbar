@@ -249,8 +249,12 @@
 .st-esg-import-scope { border: 1px solid #cfcfcf; border-radius: 18px; background: #fff; overflow: hidden; }
 .st-esg-import-scope-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 14px; cursor: pointer; color: #050505; font-weight: 800; background: #f4f4f4; }
 .st-esg-import-scope-summary em,
+.st-esg-import-category-summary em,
 .st-esg-import-item-summary em { color: #666; font-style: normal; font-size: 12px; font-weight: 500; }
 .st-esg-import-scope-body { display: grid; gap: 10px; padding: 10px; }
+.st-esg-import-category { border: 1px solid #dcdcdc; border-radius: 16px; background: #fafafa; overflow: hidden; }
+.st-esg-import-category-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; cursor: pointer; color: #111; font-weight: 760; background: #efefef; }
+.st-esg-import-category-body { display: grid; gap: 10px; padding: 10px; }
 .st-esg-import-group { border: 1px solid #d6d6d6; border-radius: 16px; background: #fff; overflow: hidden; }
 .st-esg-import-group-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; cursor: pointer; background: #f7f7f7; }
 .st-esg-import-group[open] > .st-esg-import-group-head { border-bottom: 1px solid #d6d6d6; }
