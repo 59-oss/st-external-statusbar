@@ -89,11 +89,19 @@ const BUILTIN_MARKER_PROMPTS = {
   chatHistory: { name: 'Chat History', content: '【聊天历史会在生成时按预设位置展开】' },
 };
 
+const BUILTIN_MARKER_NAMES = new Map(Object.entries(BUILTIN_MARKER_PROMPTS).map(([markerType, prompt]) => [textOf(prompt.name).toLowerCase(), markerType]));
+
+function getBuiltinMarkerType(value) {
+  const clean = textOf(value);
+  if (BUILTIN_MARKER_PROMPTS[clean]) return clean;
+  return BUILTIN_MARKER_NAMES.get(clean.toLowerCase()) || '';
+}
+
 function getBuiltinMarkerPrompt(identifier, context) {
-  const marker = BUILTIN_MARKER_PROMPTS[textOf(identifier)];
+  const markerType = getBuiltinMarkerType(identifier);
+  const marker = BUILTIN_MARKER_PROMPTS[markerType];
   if (!marker) return null;
   const content = typeof marker.getContent === 'function' ? marker.getContent(context) : marker.content;
-  const markerType = textOf(identifier);
   const placeholderOnly = ['worldInfoBefore', 'worldInfoAfter', 'chatHistory'].includes(markerType);
   return {
     identifier: markerType,
@@ -107,7 +115,7 @@ function getBuiltinMarkerPrompt(identifier, context) {
 }
 
 function isNativePresetPlaceholder(targetWindow, prompt, identifier) {
-  const markerPrompt = getBuiltinMarkerPrompt(identifier, {});
+  const markerPrompt = getBuiltinMarkerPrompt(identifier, {}) || getBuiltinMarkerPrompt(prompt?.name, {});
   if (!markerPrompt) return false;
   if (prompt?.marker === true) return true;
   const candidates = [targetWindow, targetWindow?.parent, globalThis].filter(Boolean);
@@ -121,8 +129,9 @@ function isNativePresetPlaceholder(targetWindow, prompt, identifier) {
 
 function getNativePlaceholderMarker(targetWindow, prompt, context) {
   const identifier = textOf(prompt?.identifier || prompt?.id);
-  if (!isNativePresetPlaceholder(targetWindow, prompt, identifier)) return null;
-  return getBuiltinMarkerPrompt(identifier, context);
+  const markerIdentifier = getBuiltinMarkerType(identifier) || getBuiltinMarkerType(prompt?.name);
+  if (!markerIdentifier || !isNativePresetPlaceholder(targetWindow, prompt, markerIdentifier)) return null;
+  return getBuiltinMarkerPrompt(markerIdentifier, context);
 }
 
 export function isPresetPromptEnabled(prompt, enabledMap) {

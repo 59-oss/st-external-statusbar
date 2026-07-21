@@ -96,6 +96,29 @@ assert.deepEqual(inUsePresetGroups[0].items.map((item) => Boolean(item.locked)),
 assert.deepEqual(inUsePresetGroups[0].items.map((item) => item.markerType || ''), ['', 'worldInfoBefore', 'charDescription', '']);
 assert.equal(inUsePresetGroups[0].items[3].enabled, false);
 
+const namedPlaceholderGroups = collectPresetImportGroups({
+  targetWindow: {
+    getPreset: (name) => name === 'in_use' ? {
+      prompts: [
+        { id: 'ako-world-before-placeholder', name: 'World Info (before)', content: '' },
+        { id: 'ako-char-description-placeholder', name: 'Char Description', content: '' },
+        { id: 'ako-persona-placeholder', name: 'Persona Description', content: '' },
+      ],
+    } : null,
+    getPresetManager: () => ({ getSelectedPresetName: () => 'Named Placeholder Preset' }),
+    TavernHelper: {
+      getPresetNames: () => ['Named Placeholder Preset'],
+      getPreset: () => null,
+    },
+  },
+  context,
+});
+assert.deepEqual(
+  namedPlaceholderGroups[0].items.map((item) => item.markerType || ''),
+  ['worldInfoBefore', 'charDescription', 'personaDescription'],
+);
+assert.ok(namedPlaceholderGroups[0].items.every((item) => item.locked));
+
 const orderOnlyPresetGroups = collectPresetImportGroups({
   targetWindow: {
     getPresetManager: () => ({ getSelectedPresetName: () => 'Order Only Preset' }),
