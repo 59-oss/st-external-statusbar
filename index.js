@@ -2,7 +2,7 @@ import { getContext } from '../../../st-context.js';
 import { collectComponentImportCandidates } from './component-sources.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.3';
+const EXTENSION_VERSION = '0.3.4';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 
@@ -284,10 +284,26 @@ function renderImportCandidates() {
   const box = $t('#st-esg-import-candidates');
   if (!box.length) return;
   if (!importCandidates.length) { box.html('<div class="st-esg-empty">还没有可选来源。点击“刷新可选来源”后，会按预设和世界书分组列出条目。</div>'); return; }
-  const groups = new Map();
-  importCandidates.forEach((item, index) => { const groupName = item.group || item.source || '其他'; if (!groups.has(groupName)) groups.set(groupName, []); groups.get(groupName).push({ ...item, index }); });
-  box.html([...groups.entries()].map(([groupName, items]) => `<section class="st-esg-import-group"><div class="st-esg-import-group-head"><div><div class="st-esg-import-group-title">${escapeHtml(groupName)}</div><div class="st-esg-card-desc">${items.length} 个可导入条目</div></div><button class="menu_button st-esg-import-group-toggle" type="button">本组全选</button></div><div class="st-esg-import-group-list">${items.map((item) => `<div class="st-esg-import-item" data-index="${item.index}"><label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" /><span>${escapeHtml(item.name)} · ${escapeHtml(item.scope)}</span></label><pre>${escapeHtml(item.content.slice(0, 1200))}</pre></div>`).join('')}</div></section>`).join(''));
-  $t('.st-esg-import-group-toggle').on('click', function () { const checks = $(this).closest('.st-esg-import-group').find('.st-esg-import-check'); const shouldCheck = checks.toArray().some((item) => !$(item).prop('checked')); checks.prop('checked', shouldCheck); $(this).text(shouldCheck ? '取消本组' : '本组全选'); });
+  const scopes = new Map();
+  importCandidates.forEach((item, index) => {
+    const scopeName = item.scope || '其他';
+    const groupName = item.group || item.source || '其他';
+    if (!scopes.has(scopeName)) scopes.set(scopeName, new Map());
+    const groups = scopes.get(scopeName);
+    if (!groups.has(groupName)) groups.set(groupName, []);
+    groups.get(groupName).push({ ...item, index });
+  });
+  const countItems = (groups) => [...groups.values()].reduce((sum, items) => sum + items.length, 0);
+  box.html([...scopes.entries()].map(([scopeName, groups]) => `<details class="st-esg-import-scope" open><summary class="st-esg-import-scope-summary"><span>${escapeHtml(scopeName)}</span><em>${countItems(groups)} 个条目</em></summary><div class="st-esg-import-scope-body">${[...groups.entries()].map(([groupName, items]) => `<details class="st-esg-import-group"><summary class="st-esg-import-group-head"><div><div class="st-esg-import-group-title">${escapeHtml(groupName)}</div><div class="st-esg-card-desc">${items.length} 个可导入条目</div></div><button class="menu_button st-esg-import-group-toggle" type="button">本组全选</button></summary><div class="st-esg-import-group-list">${items.map((item) => `<details class="st-esg-import-item" data-index="${item.index}"><summary class="st-esg-import-item-summary"><label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" /><span>${escapeHtml(item.name)}</span></label><em>展开</em></summary><pre>${escapeHtml(item.content.slice(0, 1200))}</pre></details>`).join('')}</div></details>`).join('')}</div></details>`).join(''));
+  $t('.st-esg-import-check').on('click', (event) => event.stopPropagation());
+  $t('.st-esg-import-group-toggle').on('click', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const checks = $(this).closest('.st-esg-import-group').find('.st-esg-import-check');
+    const shouldCheck = checks.toArray().some((item) => !$(item).prop('checked'));
+    checks.prop('checked', shouldCheck);
+    $(this).text(shouldCheck ? '取消本组' : '本组全选');
+  });
 }
 
 function importCheckedCandidates() {

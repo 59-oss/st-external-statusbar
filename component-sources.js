@@ -18,19 +18,25 @@ export function getPresetEntriesSafe(targetWindow, name) {
   return preset && Array.isArray(preset.prompts) ? preset.prompts : [];
 }
 
+export function getCurrentPresetNameSafe(targetWindow, context) {
+  const candidates = [
+    targetWindow?.TavernHelper?.getCurrentPresetName?.(),
+    targetWindow?.TavernHelper?.getSelectedPresetName?.(),
+    targetWindow?.getPresetManager?.()?.getSelectedPresetName?.(),
+    context?.getPresetManager?.()?.getSelectedPresetName?.(),
+    context?.presetName,
+  ];
+  const selectedFromDom = targetWindow?.document?.querySelector?.('select[data-preset-manager-for] option:checked')?.textContent;
+  candidates.push(selectedFromDom);
+  return candidates.map(textOf).find(Boolean) || '';
+}
+
 export function getPresetNamesSafe(targetWindow, context) {
-  const names = targetWindow?.TavernHelper?.getPresetNames?.() || [];
-  if (Array.isArray(names) && names.length) return names.filter(Boolean);
-  const fallback = context?.getPresetManager?.('sysprompt')?.getSelectedPresetName?.();
-  return fallback ? [fallback] : [];
+  const current = getCurrentPresetNameSafe(targetWindow, context);
+  return current ? [current] : [];
 }
 
 export function getWorldbookNamesSafe(targetWindow, context, selectedWorldNames = []) {
-  let all = [];
-  try {
-    if (targetWindow?.TavernHelper?.getWorldbookNames) all = targetWindow.TavernHelper.getWorldbookNames() || [];
-    else if (Array.isArray(targetWindow?.world_names)) all = targetWindow.world_names;
-  } catch (_) {}
   let globalNames = [];
   let charNames = [];
   let chatName = '';
@@ -41,8 +47,7 @@ export function getWorldbookNamesSafe(targetWindow, context, selectedWorldNames 
   } catch (_) {}
   try { chatName = targetWindow?.TavernHelper?.getChatWorldbookName?.('current') || ''; } catch (_) {}
   const selected = Array.isArray(selectedWorldNames) ? selectedWorldNames : [selectedWorldNames];
-  const contextNames = typeof context?.getWorldInfoNames === 'function' ? context.getWorldInfoNames() : [];
-  return [...new Set([...charNames, chatName, ...globalNames, ...selected, ...contextNames, ...all].filter(Boolean))];
+  return [...new Set([...charNames, chatName, ...globalNames, ...selected].filter(Boolean))];
 }
 
 export async function getWbEntriesSafe(targetWindow, name) {
