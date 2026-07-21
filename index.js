@@ -15,7 +15,7 @@ import {
 } from './component-sources.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.13';
+const EXTENSION_VERSION = '0.3.14';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -412,7 +412,7 @@ function renderImportCandidates() {
     if (!group.items.length) return '<div class="st-esg-empty st-esg-empty-small">没有可导入条目</div>';
     return group.items.map((item, itemIndex) => {
       const sourceEnabled = item.enabled !== false;
-      return `<details class="st-esg-import-item" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><summary class="st-esg-import-item-summary"><label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" ${sourceEnabled ? 'checked' : ''} /><span>${escapeHtml(item.name)}</span></label><em>${sourceEnabled ? '酒馆已启用' : '酒馆未启用'}</em></summary><div class="st-esg-import-preview" data-loaded="false"></div></details>`;
+      return `<div class="st-esg-import-item" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" ${sourceEnabled ? 'checked' : ''} /><span>${escapeHtml(item.name)}</span></label><em>${sourceEnabled ? '酒馆已启用' : '酒馆未启用'}</em></div>`;
     }).join('');
   };
   const renderGroup = (group) => {
@@ -431,15 +431,6 @@ function renderImportCandidates() {
     const groupIndex = Number($(this).data('group-index'));
     if (importGroups[groupIndex]) importGroups[groupIndex].uiOpen = this.open;
     if (this.open) loadImportGroup(groupIndex);
-  });
-  $t('.st-esg-import-item').on('toggle', function () {
-    if (!this.open) return;
-    const preview = this.querySelector('.st-esg-import-preview');
-    if (!preview || preview.dataset.loaded === 'true') return;
-    const group = importGroups[Number($(this).data('group-index'))];
-    const item = group?.items?.[Number($(this).data('item-index'))];
-    preview.innerHTML = `<pre>${escapeHtml((item?.content || '').slice(0, 1200))}</pre>`;
-    preview.dataset.loaded = 'true';
   });
   $t('.st-esg-import-check').on('click', (event) => event.stopPropagation());
   $t('.st-esg-import-group-toggle').on('click', function (event) {
