@@ -229,6 +229,7 @@
 
 .st-esg-textarea { min-height: 96px; resize: vertical; line-height: 1.55; }
 .st-esg-preview { min-height: 160px; font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); }
+.st-esg-log { min-height: 280px; color: #050505; background: #fff; font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); font-size: 12px; line-height: 1.5; }
 
 .st-esg-workflow,
 .st-esg-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
