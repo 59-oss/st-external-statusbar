@@ -87,3 +87,19 @@ assert.deepEqual(messagesFromSelectedSources.map((message) => message.role), ['s
 assert.equal(messagesFromSelectedSources[0].content, 'Selected preset prompt');
 assert.equal(messagesFromSelectedSources[1].content, 'Selected worldbook entry');
 assert.ok(!messagesFromSelectedSources.some((message) => message.content.includes('Should not be used')));
+
+const messagesWithMacroSubstitution = buildExternalStatusbarMessages({
+  targetWindow: {},
+  context,
+  latestMessage: { mes: 'Latest {{char}} prose' },
+  taskPrompt: 'Task for {{user}}',
+  components: [{ scope: '全局', name: 'Macro component', content: 'Component for {{char}}' }],
+  promptSourceItems: [
+    { scope: '预设', name: 'Macro preset', role: 'system', content: 'Preset for {{char}} and {{user}}' },
+  ],
+  substituteParams: (content) => String(content).replaceAll('{{char}}', 'CharName').replaceAll('{{user}}', 'UserName'),
+});
+
+assert.equal(messagesWithMacroSubstitution[0].content, 'Preset for CharName and UserName');
+assert.ok(messagesWithMacroSubstitution.at(-1).content.includes('Task for UserName'));
+assert.ok(messagesWithMacroSubstitution.at(-1).content.includes('Component for CharName'));

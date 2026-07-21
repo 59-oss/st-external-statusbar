@@ -75,30 +75,40 @@ function normalizeRole(role) {
   return 'system';
 }
 
-function buildPromptSourceMessages(promptSourceItems) {
+function applySubstituteParams(content, substituteParams) {
+  const text = String(content || '');
+  if (typeof substituteParams !== 'function') return text;
+  try {
+    return String(substituteParams(text) ?? '');
+  } catch {
+    return text;
+  }
+}
+
+function buildPromptSourceMessages(promptSourceItems, substituteParams) {
   return (Array.isArray(promptSourceItems) ? promptSourceItems : [])
     .map((item) => ({
       role: normalizeRole(item?.role),
-      content: textOf(item?.content),
+      content: textOf(applySubstituteParams(item?.content, substituteParams)),
     }))
     .filter((message) => textOf(message.content));
 }
 
-function buildComponentText(components) {
+function buildComponentText(components, substituteParams) {
   return components?.length
-    ? components.map((item, index) => `【组件 ${index + 1}｜${item.scope || '全局'}｜${item.name || '未命名'}】\n${item.content || ''}`).join('\n\n')
+    ? components.map((item, index) => `【组件 ${index + 1}｜${item.scope || '全局'}｜${item.name || '未命名'}】\n${applySubstituteParams(item.content || '', substituteParams)}`).join('\n\n')
     : '当前没有启用的组件。请根据生成任务指令输出状态栏。';
 }
 
-function buildPluginTaskMessage({ taskPrompt, components, latestMessage }) {
+function buildPluginTaskMessage({ taskPrompt, components, latestMessage, substituteParams }) {
   return [
     '请不要续写正文。',
     '请基于上方预设、角色、世界观与已有正文，生成需要追加在正文末尾的文末组件。',
     '',
-    `生成任务：${taskPrompt}`,
+    `生成任务：${applySubstituteParams(taskPrompt, substituteParams)}`,
     '',
     '启用组件：',
-    buildComponentText(components),
+    buildComponentText(components, substituteParams),
     '',
     '最新助手回复：',
     latestMessage?.mes || '',
@@ -107,13 +117,13 @@ function buildPluginTaskMessage({ taskPrompt, components, latestMessage }) {
   ].join('\n');
 }
 
-export function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, promptSourceItems }) {
-  const sourceMessages = buildPromptSourceMessages(promptSourceItems);
+export function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, promptSourceItems, substituteParams }) {
+  const sourceMessages = buildPromptSourceMessages(promptSourceItems, substituteParams);
   const preset = sourceMessages.length ? null : getCurrentPreset(targetWindow, context);
   const presetMessages = sourceMessages.length ? sourceMessages : getOrderedEnabledPrompts(preset)
     .map((prompt) => ({
       role: normalizeRole(prompt?.role),
-      content: replaceMacros(prompt?.content, { context, latestMessage }),
+      content: applySubstituteParams(replaceMacros(prompt?.content, { context, latestMessage }), substituteParams),
     }))
     .filter((message) => textOf(message.content));
   const fallback = presetMessages.length ? [] : [{
@@ -123,6 +133,6 @@ export function buildExternalStatusbarMessages({ targetWindow, context, latestMe
   return [
     ...fallback,
     ...presetMessages,
-    { role: 'user', content: buildPluginTaskMessage({ taskPrompt, components, latestMessage }) },
+    { role: 'user', content: buildPluginTaskMessage({ taskPrompt, components, latestMessage, substituteParams }) },
   ];
 }
