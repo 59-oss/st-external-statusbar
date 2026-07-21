@@ -44,7 +44,7 @@ const context = {
 };
 
 assert.deepEqual(getPresetNamesSafe(targetWindow, context), ['Ako 预设', '不应扫描的旧预设']);
-assert.deepEqual(getWorldbookNamesSafe(targetWindow, context), ['角色绑定世界书', '聊天绑定世界书', '状态栏世界书', '未启用世界书']);
+assert.deepEqual(getWorldbookNamesSafe(targetWindow, context), ['状态栏世界书', '角色绑定世界书', '聊天绑定世界书', '未启用世界书']);
 
 worldbookReadCount = 0;
 const presetGroups = collectPresetImportGroups({ targetWindow, context });
@@ -55,8 +55,8 @@ assert.deepEqual(presetGroups.map((group) => group.source), ['Ako 预设']);
 assert.equal(presetGroups.length, 1);
 assert.deepEqual(collectPresetImportGroups({ targetWindow, context, presetName: '不应扫描的旧预设' }).map((group) => group.source), ['不应扫描的旧预设']);
 assert.equal(worldbookGroups[0].loaded, false);
-assert.deepEqual(worldbookGroups.map((group) => group.source), ['角色绑定世界书', '聊天绑定世界书', '状态栏世界书', '未启用世界书']);
-assert.deepEqual(worldbookGroups.map((group) => group.categoryLabel), ['角色世界书', '聊天世界书', '全局世界书', '未启用世界书']);
+assert.deepEqual(worldbookGroups.map((group) => group.source), ['状态栏世界书', '角色绑定世界书', '聊天绑定世界书', '未启用世界书']);
+assert.deepEqual(worldbookGroups.map((group) => group.categoryLabel), ['全局世界书', '角色世界书', '聊天世界书', '未启用世界书']);
 assert.ok(worldbookGroups.every((group) => group.group === group.source));
 
 const lazyWorldbookItems = await collectWorldbookImportCandidates(targetWindow, '状态栏世界书');
@@ -67,7 +67,7 @@ const candidates = await collectComponentImportCandidates({ targetWindow, contex
 
 assert.equal(candidates.length, 6);
 assert.deepEqual(candidates.map((item) => item.scope), ['预设', '预设', '世界书', '世界书', '世界书', '世界书']);
-assert.deepEqual(candidates.map((item) => item.name), ['状态栏格式', '错误预设条目', '错误世界书条目', '错误世界书条目', '背包组件', '错误世界书条目']);
+assert.deepEqual(candidates.map((item) => item.name), ['状态栏格式', '错误预设条目', '背包组件', '错误世界书条目', '错误世界书条目', '错误世界书条目']);
 assert.ok(candidates.every((item) => item.content.includes('<')));
 assert.ok(!candidates.some((item) => item.group.includes('角色卡') || item.source.includes('角色卡')));
 

@@ -111,9 +111,9 @@ export function getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames
     seen.add(clean);
     groups.push({ name: clean, category, categoryLabel });
   };
+  [...globalNames, ...selected].forEach((name) => add(name, 'global', '全局世界书'));
   charNames.forEach((name) => add(name, 'character', '角色世界书'));
   add(chatName, 'chat', '聊天世界书');
-  [...globalNames, ...selected].forEach((name) => add(name, 'global', '全局世界书'));
   allNames.forEach((name) => add(name, 'inactive', '未启用世界书'));
   return groups;
 }

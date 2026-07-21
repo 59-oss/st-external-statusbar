@@ -15,9 +15,15 @@ import {
 } from './component-sources.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.11';
+const EXTENSION_VERSION = '0.3.12';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
+const WORLDBOOK_CATEGORY_ORDER = [
+  ['global', '全局世界书'],
+  ['character', '角色世界书'],
+  ['chat', '聊天世界书'],
+  ['inactive', '未启用世界书'],
+];
 
 const DEFAULT_SETTINGS = {
   enabled: false,
@@ -306,6 +312,40 @@ function addComponent() {
   saveSettings(); renderComponentList(); setStatus('已添加组件。');
 }
 
+function getImportTarget() {
+  const scope = textOf($t('#st-esg-import-target-scope').val()) || COMPONENT_SCOPE_GLOBAL;
+  return { scope, bindName: getComponentBindingName(scope, targetWindow, getContext()) };
+}
+
+function findImportedComponentIndex(item, scope, bindName) {
+  return settings.components.findIndex((component) => (
+    textOf(component.sourceType) === textOf(item?.scope)
+    && textOf(component.source) === textOf(item?.source)
+    && textOf(component.name) === textOf(item?.name)
+    && textOf(component.content) === textOf(item?.content)
+    && textOf(component.scope) === textOf(scope)
+    && textOf(component.bindName) === textOf(bindName)
+  ));
+}
+
+function captureImportViewState() {
+  const box = $t('#st-esg-import-candidates');
+  const panelBody = $t('#st-esg-dialog .st-esg-panel-body');
+  return {
+    listScrollTop: box.length ? box.scrollTop() : 0,
+    panelScrollTop: panelBody.length ? panelBody.scrollTop() : 0,
+    openGroups: new Set($t('.st-esg-import-group[open]').toArray().map((node) => Number($(node).data('group-index')))),
+  };
+}
+
+function restoreImportViewState(state) {
+  if (!state) return;
+  const box = $t('#st-esg-import-candidates');
+  const panelBody = $t('#st-esg-dialog .st-esg-panel-body');
+  if (box.length) box.scrollTop(state.listScrollTop || 0);
+  if (panelBody.length) panelBody.scrollTop(state.panelScrollTop || 0);
+}
+
 function renderSourcePresetSelect() {
   const select = $t('#st-esg-source-preset');
   if (!select.length) return;
@@ -332,6 +372,7 @@ async function scanImportCandidates() {
 async function loadImportGroup(groupIndex) {
   const group = importGroups[groupIndex];
   if (!group || group.loaded || group.loading || group.scope !== SOURCE_WORLDBOOK) return;
+  group.uiOpen = true;
   group.loading = true;
   renderImportCandidates();
   try {
@@ -352,28 +393,46 @@ function renderImportCandidates() {
   const box = $t('#st-esg-import-candidates');
   if (!box.length) return;
   if (!importGroups.length) { box.html('<div class="st-esg-empty">还没有来源。选择预设后点击“同步来源”，会显示该预设条目和世界书分类。</div>'); return; }
+  const viewState = captureImportViewState();
   const groupsWithIndex = importGroups.map((group, groupIndex) => ({ ...group, groupIndex }));
   const presetGroups = groupsWithIndex.filter((group) => group.scope !== SOURCE_WORLDBOOK);
   const worldbookGroups = groupsWithIndex.filter((group) => group.scope === SOURCE_WORLDBOOK);
   const worldbookCategories = new Map();
+  WORLDBOOK_CATEGORY_ORDER.forEach(([category, categoryLabel]) => worldbookCategories.set(category, { categoryLabel, groups: [] }));
   worldbookGroups.forEach((group) => {
-    const categoryName = group.categoryLabel || '世界书';
-    if (!worldbookCategories.has(categoryName)) worldbookCategories.set(categoryName, []);
-    worldbookCategories.get(categoryName).push(group);
+    const category = group.category || 'inactive';
+    if (!worldbookCategories.has(category)) worldbookCategories.set(category, { categoryLabel: group.categoryLabel || '世界书', groups: [] });
+    worldbookCategories.get(category).groups.push(group);
   });
+  const { scope: targetScope, bindName: targetBindName } = getImportTarget();
   const countItems = (groups) => groups.reduce((sum, group) => sum + (group.loaded ? group.items.length : 0), 0);
   const groupBody = (group) => {
     if (group.loading) return '<div class="st-esg-empty st-esg-empty-small">正在加载这本世界书...</div>';
     if (group.error) return `<div class="st-esg-empty st-esg-empty-small">${escapeHtml(group.error)}</div>`;
     if (!group.loaded) return '<div class="st-esg-empty st-esg-empty-small">展开后才加载条目，避免刷新卡顿。</div>';
     if (!group.items.length) return '<div class="st-esg-empty st-esg-empty-small">没有可导入条目</div>';
-    return group.items.map((item, itemIndex) => `<details class="st-esg-import-item" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><summary class="st-esg-import-item-summary"><label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" /><span>${escapeHtml(item.name)}</span></label><em>展开</em></summary><div class="st-esg-import-preview" data-loaded="false"></div></details>`).join('');
+    return group.items.map((item, itemIndex) => {
+      const imported = findImportedComponentIndex(item, targetScope, targetBindName) >= 0;
+      return `<details class="st-esg-import-item" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><summary class="st-esg-import-item-summary"><label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" ${imported ? 'checked' : ''} /><span>${escapeHtml(item.name)}</span></label><em>${imported ? '已在组件库' : '展开'}</em></summary><div class="st-esg-import-preview" data-loaded="false"></div></details>`;
+    }).join('');
   };
-  const renderGroup = (group) => `<details class="st-esg-import-group" data-group-index="${group.groupIndex}" ${group.loaded && group.scope !== SOURCE_WORLDBOOK ? 'open' : ''}><summary class="st-esg-import-group-head"><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loaded ? `${group.items.length} 个可导入条目` : '未加载，点开读取'}</div></div>${group.loaded ? '<button class="menu_button st-esg-import-group-toggle" type="button">本组全选</button>' : ''}</summary><div class="st-esg-import-group-list">${groupBody(group)}</div></details>`;
+  const renderGroup = (group) => {
+    const shouldOpen = group.uiOpen || viewState.openGroups.has(group.groupIndex) || (group.loaded && group.scope !== SOURCE_WORLDBOOK);
+    return `<details class="st-esg-import-group" data-group-index="${group.groupIndex}" ${shouldOpen ? 'open' : ''}><summary class="st-esg-import-group-head"><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loaded ? `${group.items.length} 个可导入条目` : '未加载，点开读取'}</div></div>${group.loaded ? '<button class="menu_button st-esg-import-group-toggle" type="button">本组全选</button>' : ''}</summary><div class="st-esg-import-group-list">${groupBody(group)}</div></details>`;
+  };
   const presetSection = presetGroups.length ? `<details class="st-esg-import-scope" open><summary class="st-esg-import-scope-summary"><span>预设</span><em>${countItems(presetGroups)} 个已加载条目</em></summary><div class="st-esg-import-scope-body">${presetGroups.map(renderGroup).join('')}</div></details>` : '';
-  const worldbookSection = worldbookGroups.length ? `<details class="st-esg-import-scope" open><summary class="st-esg-import-scope-summary"><span>世界书</span><em>${worldbookGroups.length} 本来源</em></summary><div class="st-esg-import-scope-body">${[...worldbookCategories.entries()].map(([categoryName, groups]) => `<details class="st-esg-import-category" open><summary class="st-esg-import-category-summary"><span>${escapeHtml(categoryName)}</span><em>${groups.length} 本</em></summary><div class="st-esg-import-category-body">${groups.map(renderGroup).join('')}</div></details>`).join('')}</div></details>` : '';
+  const worldbookCategoryHtml = [...worldbookCategories.values()]
+    .filter((category) => category.groups.length)
+    .map((category) => `<details class="st-esg-import-category" open><summary class="st-esg-import-category-summary"><span>${escapeHtml(category.categoryLabel)}</span><em>${category.groups.length} 本</em></summary><div class="st-esg-import-category-body">${category.groups.map(renderGroup).join('')}</div></details>`)
+    .join('');
+  const worldbookSection = worldbookGroups.length ? `<details class="st-esg-import-scope" open><summary class="st-esg-import-scope-summary"><span>世界书</span><em>${worldbookGroups.length} 本来源</em></summary><div class="st-esg-import-scope-body">${worldbookCategoryHtml}</div></details>` : '';
   box.html(`${presetSection}${worldbookSection}` || '<div class="st-esg-empty">没有可用来源。</div>');
-  $t('.st-esg-import-group').on('toggle', function () { if (this.open) loadImportGroup(Number($(this).data('group-index'))); });
+  restoreImportViewState(viewState);
+  $t('.st-esg-import-group').on('toggle', function () {
+    const groupIndex = Number($(this).data('group-index'));
+    if (importGroups[groupIndex]) importGroups[groupIndex].uiOpen = this.open;
+    if (this.open) loadImportGroup(groupIndex);
+  });
   $t('.st-esg-import-item').on('toggle', function () {
     if (!this.open) return;
     const preview = this.querySelector('.st-esg-import-preview');
@@ -397,15 +456,24 @@ function renderImportCandidates() {
 function importCheckedCandidates() {
   const checked = $t('.st-esg-import-check:checked').toArray();
   if (!checked.length) { setStatus('请先勾选要导入的候选组件。'); return; }
-  const targetScope = textOf($t('#st-esg-import-target-scope').val()) || COMPONENT_SCOPE_GLOBAL;
-  const bindName = getComponentBindingName(targetScope, targetWindow, getContext());
+  const { scope: targetScope, bindName } = getImportTarget();
+  let added = 0;
+  let updated = 0;
   for (const checkbox of checked) {
     const row = $(checkbox).closest('.st-esg-import-item');
     const group = importGroups[Number(row.data('group-index'))];
     const item = group?.items?.[Number(row.data('item-index'))];
-    if (item) settings.components.push({ id: String(Date.now() + Math.random()), name: item.name, scope: targetScope, bindName, content: item.content, enabled: true, source: item.source, sourceType: item.scope });
+    if (!item) continue;
+    const existingIndex = findImportedComponentIndex(item, targetScope, bindName);
+    if (existingIndex >= 0) {
+      settings.components[existingIndex] = { ...settings.components[existingIndex], name: item.name, scope: targetScope, bindName, content: item.content, enabled: true, source: item.source, sourceType: item.scope };
+      updated += 1;
+    } else {
+      settings.components.push({ id: String(Date.now() + Math.random()), name: item.name, scope: targetScope, bindName, content: item.content, enabled: true, source: item.source, sourceType: item.scope });
+      added += 1;
+    }
   }
-  saveSettings(); renderComponentList(); $t('.st-esg-import-check').prop('checked', false); setStatus(`已导入 ${checked.length} 个组件。`);
+  saveSettings(); renderComponentList(); renderImportCandidates(); setStatus(`已同步 ${checked.length} 个组件：新增 ${added} 个，更新 ${updated} 个。`);
 }
 
 function renderPluginPanel() {
@@ -452,6 +520,7 @@ function bindPanelEvents() {
   $t('.st-esg-tab').on('click', function () { switchTab(String($(this).data('tab'))); });
   $t('#st-esg-add-component').on('click', addComponent);
   $t('#st-esg-source-preset').on('change', function () { settings.activeSourcePreset = String($(this).val() || ''); saveSettings(); scanImportCandidates(); });
+  $t('#st-esg-import-target-scope').on('change', renderImportCandidates);
   $t('#st-esg-scan-components').on('click', scanImportCandidates);
   $t('#st-esg-import-components').on('click', importCheckedCandidates);
   $t('#st-esg-enabled').on('change', function () { settings.enabled = Boolean($(this).prop('checked')); saveSettings(); });
