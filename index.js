@@ -15,7 +15,7 @@ import {
 } from './component-sources.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.15';
+const EXTENSION_VERSION = '0.3.16';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -330,7 +330,7 @@ function findImportedComponentIndex(item, scope, bindName) {
 }
 
 function captureImportViewState() {
-  const box = $t('#st-esg-import-candidates');
+  const box = $t('#st-esg-worldbook-candidates');
   const panelBody = $t('#st-esg-dialog .st-esg-panel-body');
   return {
     listScrollTop: box.length ? box.scrollTop() : 0,
@@ -341,7 +341,7 @@ function captureImportViewState() {
 
 function restoreImportViewState(state) {
   if (!state) return;
-  const box = $t('#st-esg-import-candidates');
+  const box = $t('#st-esg-worldbook-candidates');
   const panelBody = $t('#st-esg-dialog .st-esg-panel-body');
   if (box.length) box.scrollTop(state.listScrollTop || 0);
   if (panelBody.length) panelBody.scrollTop(state.panelScrollTop || 0);
@@ -349,13 +349,13 @@ function restoreImportViewState(state) {
 
 async function openWorldbookDetail(groupIndex) {
   activeWorldbookGroupIndex = Number(groupIndex);
-  renderImportCandidates();
+  renderImportCandidates({ renderPreset: false });
   await loadImportGroup(activeWorldbookGroupIndex);
 }
 
 function backToWorldbookList() {
   activeWorldbookGroupIndex = null;
-  renderImportCandidates();
+  renderImportCandidates({ renderPreset: false });
 }
 
 function renderSourcePresetSelect() {
@@ -379,7 +379,7 @@ async function scanImportCandidates() {
   activeWorldbookGroupIndex = null;
   importCandidates = importGroups.flatMap((group) => group.items || []);
   renderImportCandidates();
-  setStatus(`已列出 ${importGroups.length} 个来源。世界书会在展开时加载。`);
+  setStatus(`已列出 ${importGroups.length} 个来源。世界书会在进入详情页时加载。`);
 }
 
 async function loadImportGroup(groupIndex) {
@@ -387,7 +387,7 @@ async function loadImportGroup(groupIndex) {
   if (!group || group.loaded || group.loading || group.scope !== SOURCE_WORLDBOOK) return;
   group.uiOpen = true;
   group.loading = true;
-  renderImportCandidates();
+  renderImportCandidates({ renderPreset: false });
   try {
     group.items = await collectWorldbookImportCandidates(targetWindow, group.source);
     group.loaded = true;
@@ -398,14 +398,19 @@ async function loadImportGroup(groupIndex) {
   } finally {
     group.loading = false;
     importCandidates = importGroups.flatMap((item) => item.items || []);
-    renderImportCandidates();
+    renderImportCandidates({ renderPreset: false });
   }
 }
 
-function renderImportCandidates() {
-  const box = $t('#st-esg-import-candidates');
-  if (!box.length) return;
-  if (!importGroups.length) { box.html('<div class="st-esg-empty">还没有来源。选择预设后点击“同步来源”，会显示该预设条目和世界书分类。</div>'); return; }
+function renderImportCandidates({ renderPreset = true, renderWorldbook = true } = {}) {
+  const presetBox = $t('#st-esg-preset-candidates');
+  const worldbookBox = $t('#st-esg-worldbook-candidates');
+  if (!presetBox.length && !worldbookBox.length) return;
+  if (!importGroups.length) {
+    if (renderPreset) presetBox.html('<div class="st-esg-empty st-esg-empty-small">还没有预设条目。选择预设后点击“同步来源”。</div>');
+    if (renderWorldbook) worldbookBox.html('<div class="st-esg-empty st-esg-empty-small">还没有世界书来源。点击“同步来源”后会按分类列出。</div>');
+    return;
+  }
   const viewState = captureImportViewState();
   const groupsWithIndex = importGroups.map((group, groupIndex) => ({ ...group, groupIndex }));
   const presetGroups = groupsWithIndex.filter((group) => group.scope !== SOURCE_WORLDBOOK);
@@ -434,22 +439,22 @@ function renderImportCandidates() {
   };
   const renderWorldbookRow = (group) => `<button class="st-esg-worldbook-row" type="button" data-group-index="${group.groupIndex}"><span>${escapeHtml(group.group)}</span><em>${group.loaded ? `${group.items.length} 个条目` : '点进查看'}</em><i class="fa-solid fa-chevron-right"></i></button>`;
   const renderWorldbookDetail = (group) => `<div class="st-esg-worldbook-detail" data-group-index="${group.groupIndex}"><div class="st-esg-detail-head"><button class="menu_button st-esg-back-worldbooks" type="button"><i class="fa-solid fa-arrow-left"></i><span>返回世界书列表</span></button><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loading ? '正在加载条目...' : group.loaded ? `${group.items.length} 个可导入条目` : '准备加载这本世界书'}</div></div>${group.loaded ? '<button class="menu_button st-esg-import-detail-toggle" type="button">本书全选</button>' : ''}</div><div class="st-esg-import-group-list">${groupBody(group)}</div></div>`;
-  const presetSection = presetGroups.length ? `<details class="st-esg-import-scope" open><summary class="st-esg-import-scope-summary"><span>预设</span><em>${countItems(presetGroups)} 个已加载条目</em></summary><div class="st-esg-import-scope-body">${presetGroups.map(renderGroup).join('')}</div></details>` : '';
   const detailGroup = activeWorldbookGroupIndex === null ? null : groupsWithIndex.find((group) => group.groupIndex === activeWorldbookGroupIndex && group.scope === SOURCE_WORLDBOOK);
   const worldbookSection = detailGroup
     ? renderWorldbookDetail(detailGroup)
     : (worldbookGroups.length ? `<details class="st-esg-import-scope" open><summary class="st-esg-import-scope-summary"><span>世界书</span><em>${worldbookGroups.length} 本来源</em></summary><div class="st-esg-import-scope-body">${[...worldbookCategories.values()].filter((category) => category.groups.length).map((category) => `<details class="st-esg-import-category" open><summary class="st-esg-import-category-summary"><span>${escapeHtml(category.categoryLabel)}</span><em>${category.groups.length} 本</em></summary><div class="st-esg-import-category-body">${category.groups.map(renderWorldbookRow).join('')}</div></details>`).join('')}</div></details>` : '');
-  box.html(detailGroup ? worldbookSection : (`${presetSection}${worldbookSection}` || '<div class="st-esg-empty">没有可用来源。</div>'));
+  if (renderPreset) presetBox.html(presetGroups.length ? presetGroups.map(renderGroup).join('') : '<div class="st-esg-empty st-esg-empty-small">当前预设没有可导入条目。</div>');
+  if (renderWorldbook) worldbookBox.html(worldbookSection || '<div class="st-esg-empty st-esg-empty-small">没有世界书来源。</div>');
   restoreImportViewState(viewState);
-  $t('.st-esg-import-group').on('toggle', function () {
+  if (renderPreset) $t('.st-esg-import-group').on('toggle', function () {
     const groupIndex = Number($(this).data('group-index'));
     if (importGroups[groupIndex]) importGroups[groupIndex].uiOpen = this.open;
     if (this.open) loadImportGroup(groupIndex);
   });
-  $t('.st-esg-worldbook-row').on('click', function () { openWorldbookDetail(Number($(this).data('group-index'))); });
-  $t('.st-esg-back-worldbooks').on('click', backToWorldbookList);
+  if (renderWorldbook) $t('.st-esg-worldbook-row').on('click', function () { openWorldbookDetail(Number($(this).data('group-index'))); });
+  if (renderWorldbook) $t('.st-esg-back-worldbooks').on('click', backToWorldbookList);
   $t('.st-esg-import-check').on('click', (event) => event.stopPropagation());
-  $t('.st-esg-import-group-toggle').on('click', function (event) {
+  if (renderPreset) $t('.st-esg-import-group-toggle').on('click', function (event) {
     event.preventDefault();
     event.stopPropagation();
     const checks = $(this).closest('.st-esg-import-group').find('.st-esg-import-check');
@@ -457,7 +462,7 @@ function renderImportCandidates() {
     checks.prop('checked', shouldCheck);
     $(this).text(shouldCheck ? '取消本组' : '本组全选');
   });
-  $t('.st-esg-import-detail-toggle').on('click', function (event) {
+  if (renderWorldbook) $t('.st-esg-import-detail-toggle').on('click', function (event) {
     event.preventDefault();
     event.stopPropagation();
     const checks = $(this).closest('.st-esg-worldbook-detail').find('.st-esg-import-check');
@@ -503,7 +508,7 @@ function renderPluginPanel() {
         <section class="st-esg-tab-panel" data-tab-panel="workspace"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">生成内容</div><div class="st-esg-card-desc">这里是状态栏生成结果。你可以先检查，再注入最新回复。</div></div></div><textarea id="st-esg-preview" class="text_pole textarea_compact st-esg-textarea st-esg-preview" rows="11" placeholder="生成后的状态栏会出现在这里。"></textarea></div><div class="st-esg-workflow"><div class="st-esg-step"><b>1</b><span>读取最新助手回复</span></div><div class="st-esg-step"><b>2</b><span>按组件与任务生成</span></div><div class="st-esg-step"><b>3</b><span>预览后写回正文末尾</span></div></div></section>
         <section class="st-esg-tab-panel" data-tab-panel="runtime"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">运行模式</div><div class="st-esg-card-desc">控制插件是否监听正文生成，以及生成后是否自动注入。</div></div><label class="st-esg-switch"><input id="st-esg-enabled" type="checkbox" /><span></span><em>启用</em></label></div><select id="st-esg-mode" class="text_pole st-esg-select"><option value="autoInject">自动生成，并自动注入最新回复</option><option value="autoReview">自动生成，但手动确认注入</option><option value="manual">手动点击生成，手动注入</option></select></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">生成任务指令</div><div class="st-esg-card-desc">告诉插件“要补什么状态栏组件”。</div></div></div><textarea id="st-esg-task" class="text_pole textarea_compact st-esg-textarea" rows="7"></textarea></div></section>
         <section class="st-esg-tab-panel" data-tab-panel="api"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">独立 API</div><div class="st-esg-card-desc">支持 OpenAI-compatible /v1/chat/completions。留空时只生成占位内容。</div></div></div><div class="st-esg-grid"><label>API 地址<input id="st-esg-api-url" class="text_pole" type="text" placeholder="例如 https://api.openai.com/v1" /></label><label>模型名称<input id="st-esg-api-model" class="text_pole" type="text" placeholder="例如 gpt-4o-mini / deepseek-chat" /></label><label>最大输出<input id="st-esg-max-tokens" class="text_pole" type="number" min="1" step="1" /></label><label>温度<input id="st-esg-temperature" class="text_pole" type="number" min="0" max="2" step="0.1" /></label></div><label class="st-esg-secret-label">API Key<input id="st-esg-api-key" class="text_pole" type="password" placeholder="可选。多数独立 API 需要填写。" /></label></div></section>
-        <section class="st-esg-tab-panel" data-tab-panel="sources"><div class="st-esg-card st-esg-import-tools"><div class="st-esg-card-head"><div><div class="st-esg-card-title">导入操作</div><div class="st-esg-card-desc">勾选预设或世界书条目后，选择归属并导入组件库。</div></div></div><div class="st-esg-grid"><label>导入到<select id="st-esg-import-target-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div><div class="st-esg-actions-row"><div id="st-esg-scan-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-list-check"></i><span>同步来源</span></div><div id="st-esg-import-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>导入勾选条目</span></div></div></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">预设</div><div class="st-esg-card-desc">用选择框切换预设；下方只显示当前选择的预设条目。</div></div></div><div class="st-esg-grid"><label>选择预设<select id="st-esg-source-preset" class="text_pole"></select></label></div></div><div id="st-esg-import-candidates" class="st-esg-import-list"><div class="st-esg-empty">还没有来源。选择预设后点击“同步来源”，会显示该预设条目和全部世界书分类。</div></div></section>
+        <section class="st-esg-tab-panel" data-tab-panel="sources"><div class="st-esg-card st-esg-import-tools"><div class="st-esg-card-head"><div><div class="st-esg-card-title">导入操作</div><div class="st-esg-card-desc">勾选预设或世界书条目后，选择归属并导入组件库。</div></div></div><div class="st-esg-grid"><label>导入到<select id="st-esg-import-target-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div><div class="st-esg-actions-row"><div id="st-esg-scan-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-list-check"></i><span>同步来源</span></div><div id="st-esg-import-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>导入勾选条目</span></div></div></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">预设</div><div class="st-esg-card-desc">用选择框切换预设；下方只显示当前选择的预设条目。</div></div></div><div class="st-esg-grid"><label>选择预设<select id="st-esg-source-preset" class="text_pole"></select></label></div><div id="st-esg-preset-candidates" class="st-esg-import-list"><div class="st-esg-empty st-esg-empty-small">还没有预设条目。选择预设后点击“同步来源”。</div></div></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">世界书</div><div class="st-esg-card-desc">这里是独立的世界书列表；点进某本世界书后只替换这张卡片。</div></div></div><div id="st-esg-worldbook-candidates" class="st-esg-import-list"><div class="st-esg-empty st-esg-empty-small">还没有世界书来源。点击“同步来源”后会按分类列出。</div></div></div></section>
         <section class="st-esg-tab-panel" data-tab-panel="components"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">手动添加组件</div><div class="st-esg-card-desc">组件库只管理最终会发送的组件；从预设和世界书导入请去“预设/世界书”页。</div></div></div><div class="st-esg-grid"><label>组件名<input id="st-esg-component-name" class="text_pole" type="text" placeholder="例如：人物状态栏" /></label><label>归属<select id="st-esg-component-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div><textarea id="st-esg-component-content" class="text_pole textarea_compact st-esg-textarea" rows="5" placeholder="在这里粘贴状态栏格式、要求或组件提示词。"></textarea><div class="st-esg-actions-row"><div id="st-esg-add-component" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-plus"></i><span>添加到组件库</span></div></div></div><div id="st-esg-component-list" class="st-esg-component-list"></div></section>
         <section class="st-esg-tab-panel" data-tab-panel="output"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">注入方式</div><div class="st-esg-card-desc">决定每次注入是替换旧状态栏，还是追加到正文末尾。</div></div></div><select id="st-esg-inject-mode" class="text_pole st-esg-select"><option value="replace">同名标记存在时替换，否则追加</option><option value="append">始终追加到最新回复末尾</option></select></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">输出清理</div><div class="st-esg-card-desc">每行一个标签或包裹符，用于清理模型多余输出。</div></div></div><textarea id="st-esg-cleanup-tags" class="text_pole textarea_compact st-esg-textarea" rows="5" placeholder="例如：&#10;<status>&#10;</status>"></textarea></div><div class="st-esg-card st-esg-compact-card"><label class="st-esg-checkbox"><input id="st-esg-ball-visible" type="checkbox" /><span>显示可选悬浮快捷按钮</span></label></div></section>
       </div>
