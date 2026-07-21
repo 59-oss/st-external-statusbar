@@ -22,7 +22,7 @@ import { createPromptLog } from './prompt-log.js';
 import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.32';
+const EXTENSION_VERSION = '0.3.39';
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLDBOOK_CATEGORY_ORDER = [
