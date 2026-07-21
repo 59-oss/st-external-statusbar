@@ -1,11 +1,12 @@
 {
   "name": "st-external-statusbar",
-  "version": "0.1.0",
+  "version": "0.3.3",
   "private": false,
   "type": "module",
   "description": "SillyTavern third-party extension for external statusbar generation.",
   "scripts": {
-    "check": "node --check index.js"
+    "check": "node --check index.js",
+    "test": "node tests/component-sources.test.mjs"
   },
   "keywords": [
     "sillytavern",
