@@ -32,7 +32,7 @@ const markerTargetWindow = {
 };
 
 const markerContext = {
-  characterId: 0,
+  characterId: '0',
   characters: [{
     data: {
       description: '角色描述正文',

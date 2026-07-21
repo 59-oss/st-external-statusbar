@@ -36,7 +36,7 @@ function getActivePresetPromptOrder(preset) {
 }
 
 function getSelectedCharacter(context) {
-  const characterId = Number.isInteger(context?.characterId) ? context.characterId : context?.this_chid;
+  const characterId = textOf(context?.characterId) || textOf(context?.this_chid);
   return context?.characters?.[characterId] || {};
 }
 
@@ -98,7 +98,7 @@ export function getPresetNamesSafe(targetWindow, context) {
 }
 
 export function getCurrentCharacterNameSafe(context) {
-  const characterId = Number.isInteger(context?.characterId) ? context.characterId : context?.this_chid;
+  const characterId = textOf(context?.characterId) || textOf(context?.this_chid);
   const character = context?.characters?.[characterId];
   return textOf(character?.name || character?.data?.name || context?.name1 || context?.characterName);
 }

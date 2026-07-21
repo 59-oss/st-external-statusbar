@@ -22,6 +22,8 @@ const targetWindow = {
 const context = {
   name1: 'UserName',
   name2: 'CharName',
+  characterId: '0',
+  characters: [{ description: 'Runtime character description', personality: 'Runtime personality', scenario: 'Runtime scenario', mes_example: 'Runtime examples' }],
   chat: [
     { is_user: true, mes: 'Hello' },
     { is_user: false, mes: 'Reply' },
@@ -121,14 +123,14 @@ const messagesWithNativeMarkers = buildExternalStatusbarMessages({
   promptSourceItems: [
     { scope: '预设', markerType: 'worldInfoBefore', role: 'system', content: '世界书占位' },
     { scope: '世界书', name: 'Lore', role: 'system', content: 'Selected lore text' },
-    { scope: '预设', markerType: 'charDescription', role: 'system', content: 'Character description text' },
+    { scope: '预设', markerType: 'charDescription', role: 'system', content: '扫描时占位' },
     { scope: '预设', markerType: 'chatHistory', role: 'system', content: '聊天历史占位' },
   ],
 });
 
 assert.deepEqual(messagesWithNativeMarkers.slice(0, 5).map((message) => message.role), ['system', 'system', 'user', 'assistant', 'user']);
 assert.equal(messagesWithNativeMarkers[0].content, 'Selected lore text');
-assert.equal(messagesWithNativeMarkers[1].content, 'Character description text');
+assert.equal(messagesWithNativeMarkers[1].content, 'Runtime character description');
 assert.equal(messagesWithNativeMarkers[2].content, 'Hello');
 assert.equal(messagesWithNativeMarkers[3].content, 'Reply');
 assert.ok(!messagesWithNativeMarkers.some((message) => message.content === '世界书占位'));

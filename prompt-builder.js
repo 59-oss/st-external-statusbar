@@ -15,9 +15,36 @@ function getRecentChatMessages(chat, limit = 12) {
 }
 
 function getCharacterName(context) {
-  const characterId = Number.isInteger(context?.characterId) ? context.characterId : context?.this_chid;
+  const characterId = textOf(context?.characterId) || textOf(context?.this_chid);
   const character = context?.characters?.[characterId];
   return textOf(context?.name2 || context?.characterName || character?.name || character?.data?.name || '角色');
+}
+
+function getSelectedCharacter(context) {
+  const characterId = textOf(context?.characterId) || textOf(context?.this_chid);
+  return context?.characters?.[characterId] || {};
+}
+
+function getCharacterField(context, field) {
+  const character = getSelectedCharacter(context);
+  return textOf(character?.[field] || character?.data?.[field]);
+}
+
+function getRuntimeMarkerContent(markerType, context) {
+  switch (textOf(markerType)) {
+    case 'charDescription':
+      return getCharacterField(context, 'description');
+    case 'charPersonality':
+      return getCharacterField(context, 'personality');
+    case 'scenario':
+      return getCharacterField(context, 'scenario');
+    case 'dialogueExamples':
+      return getCharacterField(context, 'mes_example');
+    case 'personaDescription':
+      return textOf(context?.powerUserSettings?.persona_description || context?.power_user?.persona_description || context?.personaDescription);
+    default:
+      return '';
+  }
 }
 
 function getUserName(context) {
@@ -134,7 +161,8 @@ function buildPromptSourceMessages(promptSourceItems, { context, substituteParam
       continue;
     }
 
-    const content = textOf(applySubstituteParams(item?.content, substituteParams));
+    const runtimeMarkerContent = getRuntimeMarkerContent(markerType, context);
+    const content = textOf(applySubstituteParams(runtimeMarkerContent || item?.content, substituteParams));
     if (content) messages.push({ role: normalizeRole(item?.role), content });
   }
 
