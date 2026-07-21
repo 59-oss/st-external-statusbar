@@ -41,8 +41,30 @@ function getSelectedCharacter(context) {
 }
 
 function getCharacterField(context, field) {
+  const cardFields = getCharacterCardFieldsSafe(context);
+  const fieldMap = {
+    description: cardFields.description,
+    personality: cardFields.personality,
+    scenario: cardFields.scenario,
+    mes_example: cardFields.mesExamples,
+    persona: cardFields.persona,
+  };
+  if (textOf(fieldMap[field])) return textOf(fieldMap[field]);
   const character = getSelectedCharacter(context);
   return textOf(character?.[field] || character?.data?.[field]);
+}
+
+function getCharacterCardFieldsSafe(context) {
+  if (typeof context?.getCharacterCardFields !== 'function') return {};
+  try {
+    return context.getCharacterCardFields({ chid: context?.characterId ?? context?.this_chid }) || {};
+  } catch {
+    try {
+      return context.getCharacterCardFields() || {};
+    } catch {
+      return {};
+    }
+  }
 }
 
 const BUILTIN_MARKER_PROMPTS = {
@@ -51,7 +73,7 @@ const BUILTIN_MARKER_PROMPTS = {
   charDescription: { name: 'Char Description', getContent: (context) => getCharacterField(context, 'description') },
   charPersonality: { name: 'Char Personality', getContent: (context) => getCharacterField(context, 'personality') },
   scenario: { name: 'Scenario', getContent: (context) => getCharacterField(context, 'scenario') },
-  personaDescription: { name: 'Persona Description', getContent: (context) => textOf(context?.personaDescription || context?.power_user?.persona_description || context?.powerUser?.personaDescription) },
+  personaDescription: { name: 'Persona Description', getContent: (context) => getCharacterField(context, 'persona') || textOf(context?.personaDescription || context?.power_user?.persona_description || context?.powerUser?.personaDescription) },
   dialogueExamples: { name: 'Chat Examples', getContent: (context) => getCharacterField(context, 'mes_example') },
   chatHistory: { name: 'Chat History', content: '【聊天历史会在生成时按预设位置展开】' },
 };

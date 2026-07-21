@@ -24,6 +24,13 @@ const context = {
   name2: 'CharName',
   characterId: '0',
   characters: [{ description: 'Runtime character description', personality: 'Runtime personality', scenario: 'Runtime scenario', mes_example: 'Runtime examples' }],
+  getCharacterCardFields: () => ({
+    description: 'Card fields description',
+    personality: 'Card fields personality',
+    scenario: 'Card fields scenario',
+    mesExamples: 'Card fields examples',
+    persona: 'Card fields persona',
+  }),
   chat: [
     { is_user: true, mes: 'Hello' },
     { is_user: false, mes: 'Reply' },
@@ -72,6 +79,43 @@ const messagesWithoutPresetName = buildExternalStatusbarMessages({
 
 assert.equal(messagesWithoutPresetName[0].role, 'system');
 assert.equal(messagesWithoutPresetName.at(-1).role, 'user');
+
+const messagesFromPresetMarkers = buildExternalStatusbarMessages({
+  targetWindow: {
+    TavernHelper: {
+      getCurrentPresetName: () => 'Marker Preset',
+      getPreset: () => ({
+        prompt_order: [{ character_id: 100001, order: [
+          { identifier: 'charDescription', enabled: true },
+          { identifier: 'charPersonality', enabled: true },
+          { identifier: 'scenario', enabled: true },
+          { identifier: 'dialogueExamples', enabled: true },
+          { identifier: 'personaDescription', enabled: true },
+          { identifier: 'chatHistory', enabled: true },
+        ] }],
+        prompts: [
+          { identifier: 'charDescription', name: 'Char Description', marker: true, role: 'system', content: '' },
+          { identifier: 'charPersonality', name: 'Char Personality', marker: true, role: 'system', content: '' },
+          { identifier: 'scenario', name: 'Scenario', marker: true, role: 'system', content: '' },
+          { identifier: 'dialogueExamples', name: 'Chat Examples', marker: true, role: 'system', content: '' },
+          { identifier: 'personaDescription', name: 'Persona Description', marker: true, role: 'system', content: '' },
+          { identifier: 'chatHistory', name: 'Chat History', marker: true, role: 'system', content: '' },
+        ],
+      }),
+    },
+  },
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Generate footer widgets only.',
+  components: [],
+});
+
+assert.deepEqual(messagesFromPresetMarkers.slice(0, 8).map((message) => message.role), ['system', 'system', 'system', 'system', 'system', 'user', 'assistant', 'user']);
+assert.equal(messagesFromPresetMarkers[0].content, 'Card fields description');
+assert.equal(messagesFromPresetMarkers[1].content, 'Card fields personality');
+assert.equal(messagesFromPresetMarkers[2].content, 'Card fields scenario');
+assert.equal(messagesFromPresetMarkers[3].content, 'Card fields examples');
+assert.equal(messagesFromPresetMarkers[4].content, 'Card fields persona');
 
 const messagesFromSelectedSources = buildExternalStatusbarMessages({
   targetWindow: {
@@ -124,14 +168,23 @@ const messagesWithNativeMarkers = buildExternalStatusbarMessages({
     { scope: '预设', markerType: 'worldInfoBefore', role: 'system', content: '世界书占位' },
     { scope: '世界书', name: 'Lore', role: 'system', content: 'Selected lore text' },
     { scope: '预设', markerType: 'charDescription', role: 'system', content: '扫描时占位' },
+    { scope: '预设', markerType: 'charPersonality', role: 'system', content: '扫描时占位' },
+    { scope: '预设', markerType: 'scenario', role: 'system', content: '扫描时占位' },
+    { scope: '预设', markerType: 'dialogueExamples', role: 'system', content: '扫描时占位' },
+    { scope: '预设', markerType: 'personaDescription', role: 'system', content: '扫描时占位' },
     { scope: '预设', markerType: 'chatHistory', role: 'system', content: '聊天历史占位' },
   ],
 });
 
-assert.deepEqual(messagesWithNativeMarkers.slice(0, 5).map((message) => message.role), ['system', 'system', 'user', 'assistant', 'user']);
+assert.deepEqual(messagesWithNativeMarkers.slice(0, 9).map((message) => message.role), ['system', 'system', 'system', 'system', 'system', 'system', 'user', 'assistant', 'user']);
 assert.equal(messagesWithNativeMarkers[0].content, 'Selected lore text');
-assert.equal(messagesWithNativeMarkers[1].content, 'Runtime character description');
-assert.equal(messagesWithNativeMarkers[2].content, 'Hello');
-assert.equal(messagesWithNativeMarkers[3].content, 'Reply');
+assert.equal(messagesWithNativeMarkers[1].content, 'Card fields description');
+assert.equal(messagesWithNativeMarkers[2].content, 'Card fields personality');
+assert.equal(messagesWithNativeMarkers[3].content, 'Card fields scenario');
+assert.equal(messagesWithNativeMarkers[4].content, 'Card fields examples');
+assert.equal(messagesWithNativeMarkers[5].content, 'Card fields persona');
+assert.equal(messagesWithNativeMarkers[6].content, 'Hello');
+assert.equal(messagesWithNativeMarkers[7].content, 'Reply');
 assert.ok(!messagesWithNativeMarkers.some((message) => message.content === '世界书占位'));
 assert.ok(!messagesWithNativeMarkers.some((message) => message.content === '聊天历史占位'));
+assert.ok(!messagesWithNativeMarkers.some((message) => message.content === '扫描时占位'));

@@ -26,8 +26,30 @@ function getSelectedCharacter(context) {
 }
 
 function getCharacterField(context, field) {
+  const cardFields = getCharacterCardFieldsSafe(context);
+  const fieldMap = {
+    description: cardFields.description,
+    personality: cardFields.personality,
+    scenario: cardFields.scenario,
+    mes_example: cardFields.mesExamples,
+    persona: cardFields.persona,
+  };
+  if (textOf(fieldMap[field])) return textOf(fieldMap[field]);
   const character = getSelectedCharacter(context);
   return textOf(character?.[field] || character?.data?.[field]);
+}
+
+function getCharacterCardFieldsSafe(context) {
+  if (typeof context?.getCharacterCardFields !== 'function') return {};
+  try {
+    return context.getCharacterCardFields({ chid: context?.characterId ?? context?.this_chid }) || {};
+  } catch {
+    try {
+      return context.getCharacterCardFields() || {};
+    } catch {
+      return {};
+    }
+  }
 }
 
 function getRuntimeMarkerContent(markerType, context) {
@@ -41,7 +63,7 @@ function getRuntimeMarkerContent(markerType, context) {
     case 'dialogueExamples':
       return getCharacterField(context, 'mes_example');
     case 'personaDescription':
-      return textOf(context?.powerUserSettings?.persona_description || context?.power_user?.persona_description || context?.personaDescription);
+      return getCharacterField(context, 'persona') || textOf(context?.powerUserSettings?.persona_description || context?.power_user?.persona_description || context?.personaDescription);
     default:
       return '';
   }
@@ -169,6 +191,19 @@ function buildPromptSourceMessages(promptSourceItems, { context, substituteParam
   return messages;
 }
 
+function buildPresetPromptSourceItems(preset, { context, latestMessage, substituteParams }) {
+  return getOrderedEnabledPrompts(preset).map((prompt) => {
+    const identifier = getPromptIdentifier(prompt);
+    const markerType = prompt?.marker ? identifier : '';
+    return {
+      scope: '预设',
+      role: prompt?.role,
+      markerType,
+      content: markerType ? '' : applySubstituteParams(replaceMacros(prompt?.content, { context, latestMessage }), substituteParams),
+    };
+  });
+}
+
 function buildComponentText(components, substituteParams) {
   return components?.length
     ? components.map((item) => applySubstituteParams(item.content || '', substituteParams)).filter(textOf).join('\n\n')
@@ -191,22 +226,20 @@ function buildPluginTaskMessage({ taskPrompt, components, substituteParams }) {
 
 export function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, promptSourceItems, substituteParams }) {
   const hasSelectedPromptSources = Array.isArray(promptSourceItems) && promptSourceItems.length > 0;
-  const sourceMessages = buildPromptSourceMessages(promptSourceItems, { context, substituteParams });
   const preset = hasSelectedPromptSources ? null : getCurrentPreset(targetWindow, context);
-  const presetMessages = hasSelectedPromptSources ? sourceMessages : getOrderedEnabledPrompts(preset)
-    .map((prompt) => ({
-      role: normalizeRole(prompt?.role),
-      content: applySubstituteParams(replaceMacros(prompt?.content, { context, latestMessage }), substituteParams),
-    }))
-    .filter((message) => textOf(message.content));
-  const fallback = presetMessages.length || hasSelectedPromptSources ? [] : [{
+  const activePromptSourceItems = hasSelectedPromptSources
+    ? promptSourceItems
+    : buildPresetPromptSourceItems(preset, { context, latestMessage, substituteParams });
+  const promptMessages = buildPromptSourceMessages(activePromptSourceItems, { context, substituteParams });
+  const hasChatHistoryMarker = activePromptSourceItems.some((item) => textOf(item?.markerType) === 'chatHistory');
+  const fallback = promptMessages.length || activePromptSourceItems.length ? [] : [{
     role: 'system',
     content: '你是 SillyTavern 的外置文末状态栏生成器。你只生成文末状态栏/文末组件，不续写正文。',
   }];
   return [
     ...fallback,
-    ...presetMessages,
-    ...(hasSelectedPromptSources ? [] : getRecentChatMessages(context?.chat)),
+    ...promptMessages,
+    ...(!hasSelectedPromptSources && !hasChatHistoryMarker ? getRecentChatMessages(context?.chat) : []),
     { role: 'user', content: buildPluginTaskMessage({ taskPrompt, components, substituteParams }) },
   ];
 }

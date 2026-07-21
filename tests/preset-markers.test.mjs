@@ -16,6 +16,8 @@ const markerTargetWindow = {
           { identifier: 'charDescription', enabled: true },
           { identifier: 'charPersonality', enabled: true },
           { identifier: 'scenario', enabled: false },
+          { identifier: 'dialogueExamples', enabled: true },
+          { identifier: 'personaDescription', enabled: true },
           { identifier: 'chatHistory', enabled: true },
         ],
       }],
@@ -24,6 +26,8 @@ const markerTargetWindow = {
         { identifier: 'charDescription', name: 'Char Description', marker: true, content: '' },
         { identifier: 'charPersonality', name: 'Char Personality', marker: true, content: '' },
         { identifier: 'scenario', name: 'Scenario', marker: true, content: '' },
+        { identifier: 'dialogueExamples', name: 'Chat Examples', marker: true, content: '' },
+        { identifier: 'personaDescription', name: 'Persona Description', marker: true, content: '' },
         { identifier: 'chatHistory', name: 'Chat History', marker: true, content: '' },
         { identifier: 'custom-system', name: 'Custom System', role: 'system', content: 'Custom prompt' },
       ],
@@ -41,6 +45,13 @@ const markerContext = {
       mes_example: '示例对话正文',
     },
   }],
+  getCharacterCardFields: () => ({
+    description: '酒馆字段角色描述',
+    personality: '酒馆字段角色性格',
+    scenario: '酒馆字段场景',
+    mesExamples: '酒馆字段示例对话',
+    persona: '酒馆字段用户设定',
+  }),
 };
 
 const markerGroups = collectPresetImportGroups({
@@ -50,11 +61,13 @@ const markerGroups = collectPresetImportGroups({
 });
 
 assert.deepEqual(
-  markerGroups[0].items.slice(0, 5).map((item) => item.markerType),
-  ['worldInfoBefore', 'charDescription', 'charPersonality', 'scenario', 'chatHistory'],
+  markerGroups[0].items.slice(0, 7).map((item) => item.markerType),
+  ['worldInfoBefore', 'charDescription', 'charPersonality', 'scenario', 'dialogueExamples', 'personaDescription', 'chatHistory'],
 );
-assert.equal(markerGroups[0].items.find((item) => item.markerType === 'charDescription').content, '角色描述正文');
-assert.equal(markerGroups[0].items.find((item) => item.markerType === 'charPersonality').content, '角色性格正文');
+assert.equal(markerGroups[0].items.find((item) => item.markerType === 'charDescription').content, '酒馆字段角色描述');
+assert.equal(markerGroups[0].items.find((item) => item.markerType === 'charPersonality').content, '酒馆字段角色性格');
+assert.equal(markerGroups[0].items.find((item) => item.markerType === 'dialogueExamples').content, '酒馆字段示例对话');
+assert.equal(markerGroups[0].items.find((item) => item.markerType === 'personaDescription').content, '酒馆字段用户设定');
 assert.equal(markerGroups[0].items.find((item) => item.markerType === 'scenario').enabled, false);
 assert.ok(markerGroups[0].items.find((item) => item.markerType === 'chatHistory').content.includes('聊天历史'));
 
