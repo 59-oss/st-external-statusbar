@@ -15,7 +15,7 @@ import {
 } from './component-sources.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.12';
+const EXTENSION_VERSION = '0.3.13';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -404,7 +404,6 @@ function renderImportCandidates() {
     if (!worldbookCategories.has(category)) worldbookCategories.set(category, { categoryLabel: group.categoryLabel || '世界书', groups: [] });
     worldbookCategories.get(category).groups.push(group);
   });
-  const { scope: targetScope, bindName: targetBindName } = getImportTarget();
   const countItems = (groups) => groups.reduce((sum, group) => sum + (group.loaded ? group.items.length : 0), 0);
   const groupBody = (group) => {
     if (group.loading) return '<div class="st-esg-empty st-esg-empty-small">正在加载这本世界书...</div>';
@@ -412,8 +411,8 @@ function renderImportCandidates() {
     if (!group.loaded) return '<div class="st-esg-empty st-esg-empty-small">展开后才加载条目，避免刷新卡顿。</div>';
     if (!group.items.length) return '<div class="st-esg-empty st-esg-empty-small">没有可导入条目</div>';
     return group.items.map((item, itemIndex) => {
-      const imported = findImportedComponentIndex(item, targetScope, targetBindName) >= 0;
-      return `<details class="st-esg-import-item" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><summary class="st-esg-import-item-summary"><label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" ${imported ? 'checked' : ''} /><span>${escapeHtml(item.name)}</span></label><em>${imported ? '已在组件库' : '展开'}</em></summary><div class="st-esg-import-preview" data-loaded="false"></div></details>`;
+      const sourceEnabled = item.enabled !== false;
+      return `<details class="st-esg-import-item" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><summary class="st-esg-import-item-summary"><label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" ${sourceEnabled ? 'checked' : ''} /><span>${escapeHtml(item.name)}</span></label><em>${sourceEnabled ? '酒馆已启用' : '酒馆未启用'}</em></summary><div class="st-esg-import-preview" data-loaded="false"></div></details>`;
     }).join('');
   };
   const renderGroup = (group) => {
@@ -520,7 +519,6 @@ function bindPanelEvents() {
   $t('.st-esg-tab').on('click', function () { switchTab(String($(this).data('tab'))); });
   $t('#st-esg-add-component').on('click', addComponent);
   $t('#st-esg-source-preset').on('change', function () { settings.activeSourcePreset = String($(this).val() || ''); saveSettings(); scanImportCandidates(); });
-  $t('#st-esg-import-target-scope').on('change', renderImportCandidates);
   $t('#st-esg-scan-components').on('click', scanImportCandidates);
   $t('#st-esg-import-components').on('click', importCheckedCandidates);
   $t('#st-esg-enabled').on('change', function () { settings.enabled = Boolean($(this).prop('checked')); saveSettings(); });

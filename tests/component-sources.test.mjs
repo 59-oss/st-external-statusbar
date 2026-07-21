@@ -16,6 +16,10 @@ const targetWindow = {
   TavernHelper: {
     getPresetNames: () => ['Ako 预设', '不应扫描的旧预设'],
     getPreset: (name) => name === 'Ako 预设' ? {
+      prompt_order: [{ character_id: 100001, order: [
+        { identifier: 'statusbar-format', enabled: false },
+        { identifier: 'empty', enabled: true },
+      ] }],
       prompts: [
         { id: 'statusbar-format', name: '状态栏格式', content: '<status>HP: {{value}}</status>' },
         { id: 'empty', name: '空条目', content: '' },
@@ -28,7 +32,7 @@ const targetWindow = {
     getWorldbook: (name) => {
       worldbookReadCount += 1;
       return name === '状态栏世界书' ? {
-        1: { uid: 1, comment: '背包组件', key: ['背包'], content: '<bag>空</bag>' },
+        1: { uid: 1, comment: '背包组件', key: ['背包'], content: '<bag>空</bag>', disable: true },
       } : {
         2: { uid: 2, comment: '错误世界书条目', content: '<wrong />' },
       };
@@ -51,6 +55,7 @@ const presetGroups = collectPresetImportGroups({ targetWindow, context });
 const worldbookGroups = collectWorldbookImportGroups({ targetWindow, context });
 assert.equal(worldbookReadCount, 0);
 assert.equal(presetGroups[0].loaded, true);
+assert.equal(presetGroups[0].items[0].enabled, false);
 assert.deepEqual(presetGroups.map((group) => group.source), ['Ako 预设']);
 assert.equal(presetGroups.length, 1);
 assert.deepEqual(collectPresetImportGroups({ targetWindow, context, presetName: '不应扫描的旧预设' }).map((group) => group.source), ['不应扫描的旧预设']);
@@ -62,6 +67,7 @@ assert.ok(worldbookGroups.every((group) => group.group === group.source));
 const lazyWorldbookItems = await collectWorldbookImportCandidates(targetWindow, '状态栏世界书');
 assert.equal(worldbookReadCount, 1);
 assert.deepEqual(lazyWorldbookItems.map((item) => item.name), ['背包组件']);
+assert.equal(lazyWorldbookItems[0].enabled, false);
 
 const candidates = await collectComponentImportCandidates({ targetWindow, context });
 

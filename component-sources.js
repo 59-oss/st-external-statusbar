@@ -6,19 +6,34 @@ export const COMPONENT_SCOPE_CHARACTER = '角色';
 
 const textOf = (value) => String(value ?? '').trim();
 
-export function addImportCandidate(candidates, group, source, scope, name, content) {
+export function addImportCandidate(candidates, group, source, scope, name, content, enabled = true) {
   const clean = textOf(content);
   if (!clean) return;
   const cleanName = textOf(name) || '未命名条目';
   const key = `${group}::${source}::${scope}::${cleanName}::${clean.slice(0, 200)}`;
   if (!candidates.some((item) => item.key === key)) {
-    candidates.push({ key, group, source, scope, name: cleanName, content: clean });
+    candidates.push({ key, group, source, scope, name: cleanName, content: clean, enabled: enabled !== false });
   }
 }
 
 export function getPresetEntriesSafe(targetWindow, name) {
   const preset = targetWindow?.TavernHelper?.getPreset?.(name);
   return preset && Array.isArray(preset.prompts) ? preset.prompts : [];
+}
+
+export function getPresetPromptEnabledMap(targetWindow, name) {
+  const preset = targetWindow?.TavernHelper?.getPreset?.(name);
+  const lists = Array.isArray(preset?.prompt_order) ? preset.prompt_order : [];
+  const order = lists.find((list) => Array.isArray(list?.order))?.order || [];
+  return new Map(order.map((entry) => [textOf(entry?.identifier), entry?.enabled !== false]).filter(([identifier]) => Boolean(identifier)));
+}
+
+export function isPresetPromptEnabled(prompt, enabledMap) {
+  const identifiers = [prompt?.identifier, prompt?.id, prompt?.name].map(textOf).filter(Boolean);
+  for (const identifier of identifiers) {
+    if (enabledMap.has(identifier)) return enabledMap.get(identifier);
+  }
+  return prompt?.enabled !== false;
 }
 
 export function getCurrentPresetNameSafe(targetWindow, context) {
@@ -161,17 +176,23 @@ export function getWorldbookEntryName(entry) {
   return textOf(entry?.name) || textOf(entry?.comment) || (Array.isArray(entry?.key) ? entry.key.join(', ') : textOf(entry?.key)) || `条目 ${entry?.uid ?? ''}`;
 }
 
+export function isWorldbookEntryEnabled(entry) {
+  if (typeof entry?.enabled === 'boolean') return entry.enabled;
+  return entry?.disable !== true;
+}
+
 export async function collectComponentImportCandidates({ targetWindow, context, selectedWorldNames = [] }) {
   const candidates = [];
   for (const presetName of getPresetNamesSafe(targetWindow, context)) {
+    const enabledMap = getPresetPromptEnabledMap(targetWindow, presetName);
     for (const prompt of getPresetEntriesSafe(targetWindow, presetName)) {
-      addImportCandidate(candidates, `预设：${presetName}`, presetName, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content);
+      addImportCandidate(candidates, `预设：${presetName}`, presetName, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content, isPresetPromptEnabled(prompt, enabledMap));
     }
   }
   for (const worldName of getWorldbookNamesSafe(targetWindow, context, selectedWorldNames)) {
     const entries = await getWbEntriesSafe(targetWindow, worldName);
     for (const entry of entries) {
-      addImportCandidate(candidates, `世界书：${worldName}`, worldName, SOURCE_WORLDBOOK, getWorldbookEntryName(entry), entry?.content);
+      addImportCandidate(candidates, `世界书：${worldName}`, worldName, SOURCE_WORLDBOOK, getWorldbookEntryName(entry), entry?.content, isWorldbookEntryEnabled(entry));
     }
   }
   return candidates;
@@ -181,8 +202,9 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
   const selected = textOf(presetName) || getCurrentPresetNameSafe(targetWindow, context) || getPresetNamesSafe(targetWindow, context)[0] || '';
   if (!selected) return [];
   const candidates = [];
+  const enabledMap = getPresetPromptEnabledMap(targetWindow, selected);
   for (const prompt of getPresetEntriesSafe(targetWindow, selected)) {
-    addImportCandidate(candidates, `预设：${selected}`, selected, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content);
+    addImportCandidate(candidates, `预设：${selected}`, selected, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content, isPresetPromptEnabled(prompt, enabledMap));
   }
   return [{ scope: SOURCE_PRESET, group: `预设：${selected}`, source: selected, loaded: true, items: candidates }];
 }
@@ -204,7 +226,7 @@ export async function collectWorldbookImportCandidates(targetWindow, worldName) 
   const candidates = [];
   const entries = await getWbEntriesSafe(targetWindow, worldName);
   for (const entry of entries) {
-    addImportCandidate(candidates, `世界书：${worldName}`, worldName, SOURCE_WORLDBOOK, getWorldbookEntryName(entry), entry?.content);
+    addImportCandidate(candidates, `世界书：${worldName}`, worldName, SOURCE_WORLDBOOK, getWorldbookEntryName(entry), entry?.content, isWorldbookEntryEnabled(entry));
   }
   return candidates;
 }
