@@ -95,13 +95,45 @@ function applySubstituteParams(content, substituteParams) {
   }
 }
 
-function buildPromptSourceMessages(promptSourceItems, substituteParams) {
-  return (Array.isArray(promptSourceItems) ? promptSourceItems : [])
-    .map((item) => ({
-      role: normalizeRole(item?.role),
-      content: textOf(applySubstituteParams(item?.content, substituteParams)),
-    }))
-    .filter((message) => textOf(message.content));
+function isWorldbookSourceItem(item) {
+  return textOf(item?.scope) === '世界书';
+}
+
+function isWorldInfoMarker(markerType) {
+  return ['worldInfoBefore', 'worldInfoAfter'].includes(textOf(markerType));
+}
+
+function buildPromptSourceMessages(promptSourceItems, { context, substituteParams }) {
+  const items = Array.isArray(promptSourceItems) ? promptSourceItems : [];
+  const worldbookItems = items.filter(isWorldbookSourceItem);
+  const hasWorldInfoMarker = items.some((item) => isWorldInfoMarker(item?.markerType));
+  let worldbookInserted = false;
+  const messages = [];
+
+  for (const item of items) {
+    const markerType = textOf(item?.markerType);
+    if (isWorldbookSourceItem(item) && hasWorldInfoMarker) continue;
+
+    if (isWorldInfoMarker(markerType)) {
+      if (worldbookInserted) continue;
+      worldbookInserted = true;
+      for (const worldbookItem of worldbookItems) {
+        const content = textOf(applySubstituteParams(worldbookItem?.content, substituteParams));
+        if (content) messages.push({ role: normalizeRole(worldbookItem?.role), content });
+      }
+      continue;
+    }
+
+    if (markerType === 'chatHistory') {
+      messages.push(...getRecentChatMessages(context?.chat));
+      continue;
+    }
+
+    const content = textOf(applySubstituteParams(item?.content, substituteParams));
+    if (content) messages.push({ role: normalizeRole(item?.role), content });
+  }
+
+  return messages;
 }
 
 function buildComponentText(components, substituteParams) {
@@ -125,22 +157,23 @@ function buildPluginTaskMessage({ taskPrompt, components, substituteParams }) {
 }
 
 export function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, promptSourceItems, substituteParams }) {
-  const sourceMessages = buildPromptSourceMessages(promptSourceItems, substituteParams);
-  const preset = sourceMessages.length ? null : getCurrentPreset(targetWindow, context);
-  const presetMessages = sourceMessages.length ? sourceMessages : getOrderedEnabledPrompts(preset)
+  const hasSelectedPromptSources = Array.isArray(promptSourceItems) && promptSourceItems.length > 0;
+  const sourceMessages = buildPromptSourceMessages(promptSourceItems, { context, substituteParams });
+  const preset = hasSelectedPromptSources ? null : getCurrentPreset(targetWindow, context);
+  const presetMessages = hasSelectedPromptSources ? sourceMessages : getOrderedEnabledPrompts(preset)
     .map((prompt) => ({
       role: normalizeRole(prompt?.role),
       content: applySubstituteParams(replaceMacros(prompt?.content, { context, latestMessage }), substituteParams),
     }))
     .filter((message) => textOf(message.content));
-  const fallback = presetMessages.length ? [] : [{
+  const fallback = presetMessages.length || hasSelectedPromptSources ? [] : [{
     role: 'system',
     content: '你是 SillyTavern 的外置文末状态栏生成器。你只生成文末状态栏/文末组件，不续写正文。',
   }];
   return [
     ...fallback,
     ...presetMessages,
-    ...getRecentChatMessages(context?.chat),
+    ...(hasSelectedPromptSources ? [] : getRecentChatMessages(context?.chat)),
     { role: 'user', content: buildPluginTaskMessage({ taskPrompt, components, substituteParams }) },
   ];
 }

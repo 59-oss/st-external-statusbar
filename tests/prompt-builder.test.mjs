@@ -90,7 +90,7 @@ const messagesFromSelectedSources = buildExternalStatusbarMessages({
   ],
 });
 
-assert.deepEqual(messagesFromSelectedSources.map((message) => message.role), ['system', 'system', 'user', 'assistant', 'user']);
+assert.deepEqual(messagesFromSelectedSources.map((message) => message.role), ['system', 'system', 'user']);
 assert.equal(messagesFromSelectedSources[0].content, 'Selected preset prompt');
 assert.equal(messagesFromSelectedSources[1].content, 'Selected worldbook entry');
 assert.ok(!messagesFromSelectedSources.some((message) => message.content.includes('Should not be used')));
@@ -111,3 +111,25 @@ assert.equal(messagesWithMacroSubstitution[0].content, 'Preset for CharName and 
 assert.ok(messagesWithMacroSubstitution.at(-1).content.includes('Task for UserName'));
 assert.ok(messagesWithMacroSubstitution.at(-1).content.includes('Component for CharName'));
 assert.ok(!messagesWithMacroSubstitution.at(-1).content.includes('Macro component'));
+
+const messagesWithNativeMarkers = buildExternalStatusbarMessages({
+  targetWindow: {},
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Generate footer widgets only.',
+  components: [],
+  promptSourceItems: [
+    { scope: '预设', markerType: 'worldInfoBefore', role: 'system', content: '世界书占位' },
+    { scope: '世界书', name: 'Lore', role: 'system', content: 'Selected lore text' },
+    { scope: '预设', markerType: 'charDescription', role: 'system', content: 'Character description text' },
+    { scope: '预设', markerType: 'chatHistory', role: 'system', content: '聊天历史占位' },
+  ],
+});
+
+assert.deepEqual(messagesWithNativeMarkers.slice(0, 5).map((message) => message.role), ['system', 'system', 'user', 'assistant', 'user']);
+assert.equal(messagesWithNativeMarkers[0].content, 'Selected lore text');
+assert.equal(messagesWithNativeMarkers[1].content, 'Character description text');
+assert.equal(messagesWithNativeMarkers[2].content, 'Hello');
+assert.equal(messagesWithNativeMarkers[3].content, 'Reply');
+assert.ok(!messagesWithNativeMarkers.some((message) => message.content === '世界书占位'));
+assert.ok(!messagesWithNativeMarkers.some((message) => message.content === '聊天历史占位'));

@@ -28,6 +28,40 @@ export function getPresetPromptEnabledMap(targetWindow, name) {
   return new Map(order.map((entry) => [textOf(entry?.identifier), entry?.enabled !== false]).filter(([identifier]) => Boolean(identifier)));
 }
 
+function getSelectedCharacter(context) {
+  const characterId = Number.isInteger(context?.characterId) ? context.characterId : context?.this_chid;
+  return context?.characters?.[characterId] || {};
+}
+
+function getCharacterField(context, field) {
+  const character = getSelectedCharacter(context);
+  return textOf(character?.[field] || character?.data?.[field]);
+}
+
+const BUILTIN_MARKER_PROMPTS = {
+  worldInfoBefore: { name: 'World Info (before)', content: '【世界书 before 会在生成时按当前勾选世界书展开】' },
+  worldInfoAfter: { name: 'World Info (after)', content: '【世界书 after 会在生成时按当前勾选世界书展开】' },
+  charDescription: { name: 'Char Description', getContent: (context) => getCharacterField(context, 'description') },
+  charPersonality: { name: 'Char Personality', getContent: (context) => getCharacterField(context, 'personality') },
+  scenario: { name: 'Scenario', getContent: (context) => getCharacterField(context, 'scenario') },
+  personaDescription: { name: 'Persona Description', getContent: (context) => textOf(context?.personaDescription || context?.power_user?.persona_description || context?.powerUser?.personaDescription) },
+  dialogueExamples: { name: 'Chat Examples', getContent: (context) => getCharacterField(context, 'mes_example') },
+  chatHistory: { name: 'Chat History', content: '【聊天历史会在生成时按预设位置展开】' },
+};
+
+function getBuiltinMarkerPrompt(identifier, context) {
+  const marker = BUILTIN_MARKER_PROMPTS[textOf(identifier)];
+  if (!marker) return null;
+  const content = typeof marker.getContent === 'function' ? marker.getContent(context) : marker.content;
+  return {
+    identifier: textOf(identifier),
+    name: marker.name,
+    role: 'system',
+    content: textOf(content) || marker.content || `【${marker.name} 会在生成时展开】`,
+    markerType: textOf(identifier),
+  };
+}
+
 export function isPresetPromptEnabled(prompt, enabledMap) {
   const identifiers = [prompt?.identifier, prompt?.id, prompt?.name].map(textOf).filter(Boolean);
   for (const identifier of identifiers) {
@@ -268,9 +302,37 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
   const selected = textOf(presetName) || getCurrentPresetNameSafe(targetWindow, context) || getPresetNamesSafe(targetWindow, context)[0] || '';
   if (!selected) return [];
   const candidates = [];
+  let preset = null;
+  try { preset = targetWindow?.TavernHelper?.getPreset?.(selected) || null; } catch (_) {}
+  const prompts = Array.isArray(preset?.prompts) ? preset.prompts : [];
+  const promptMap = new Map(prompts.map((prompt) => [textOf(prompt?.identifier || prompt?.id || prompt?.name), prompt]).filter(([id]) => Boolean(id)));
+  const orderList = (Array.isArray(preset?.prompt_order) ? preset.prompt_order : [])
+    .find((list) => Array.isArray(list?.order))?.order || [];
   const enabledMap = getPresetPromptEnabledMap(targetWindow, selected);
-  getPresetEntriesSafe(targetWindow, selected).forEach((prompt, sourceOrder) => {
-    addImportCandidate(candidates, `预设：${selected}`, selected, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content, isPresetPromptEnabled(prompt, enabledMap), { sourceOrder, sourceUid: prompt?.identifier || prompt?.id, role: prompt?.role });
+  const used = new Set();
+
+  orderList.forEach((orderItem, sourceOrder) => {
+    const identifier = textOf(orderItem?.identifier);
+    if (!identifier) return;
+    used.add(identifier);
+    const prompt = promptMap.get(identifier) || getBuiltinMarkerPrompt(identifier, context);
+    if (!prompt) return;
+    addImportCandidate(candidates, `预设：${selected}`, selected, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content, orderItem?.enabled !== false, {
+      sourceOrder,
+      sourceUid: prompt?.identifier || prompt?.id,
+      role: prompt?.role,
+      markerType: prompt?.markerType,
+    });
+  });
+
+  prompts.forEach((prompt, index) => {
+    const identifier = textOf(prompt?.identifier || prompt?.id || prompt?.name);
+    if (identifier && used.has(identifier)) return;
+    addImportCandidate(candidates, `预设：${selected}`, selected, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content, isPresetPromptEnabled(prompt, enabledMap), {
+      sourceOrder: orderList.length + index,
+      sourceUid: prompt?.identifier || prompt?.id,
+      role: prompt?.role,
+    });
   });
   return [{ scope: SOURCE_PRESET, group: `预设：${selected}`, source: selected, loaded: true, items: candidates }];
 }
