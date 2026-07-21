@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
-import { collectComponentImportCandidates, getPresetNamesSafe, getWorldbookNamesSafe } from '../component-sources.js';
+import {
+  collectComponentImportCandidates,
+  getActiveComponentsForContext,
+  getPresetNamesSafe,
+  getWorldbookNamesSafe,
+  normalizeComponent,
+} from '../component-sources.js';
 
 const targetWindow = {
   getPresetManager: () => ({ getSelectedPresetName: () => 'Ako 预设' }),
@@ -24,7 +30,8 @@ const targetWindow = {
 };
 
 const context = {
-  characters: [{ name: '不应该出现的角色', data: { description: '角色卡内容' } }],
+  characterId: 0,
+  characters: [{ name: '当前角色', data: { description: '角色卡内容' } }],
   extensionPrompts: { injected: { value: '注入内容' } },
   getWorldInfoNames: () => [],
 };
@@ -40,3 +47,19 @@ assert.deepEqual(candidates.map((item) => item.name), ['状态栏格式', '背�
 assert.ok(candidates.every((item) => item.content.includes('<')));
 assert.ok(!candidates.some((item) => item.group.includes('角色') || item.source.includes('角色')));
 assert.ok(!candidates.some((item) => item.name.includes('错误') || item.source.includes('未挂载')));
+
+const components = [
+  { name: '全局状态栏', scope: '全局', content: 'global' },
+  { name: '当前预设状态栏', scope: '预设', bindName: 'Ako 预设', content: 'preset-current' },
+  { name: '其他预设状态栏', scope: '预设', bindName: '其他预设', content: 'preset-other' },
+  { name: '当前角色状态栏', scope: '角色', bindName: '当前角色', content: 'character-current' },
+  { name: '其他角色状态栏', scope: '角色', bindName: '其他角色', content: 'character-other' },
+  { name: '旧世界书归属', scope: '世界书', content: 'legacy-worldbook-scope' },
+  { name: '关闭组件', scope: '全局', enabled: false, content: 'disabled' },
+];
+
+assert.equal(normalizeComponent({ scope: '世界书' }, targetWindow, context).scope, '全局');
+assert.deepEqual(
+  getActiveComponentsForContext(components, targetWindow, context).map((item) => item.name),
+  ['全局状态栏', '当前预设状态栏', '当前角色状态栏', '旧世界书归属'],
+);

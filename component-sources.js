@@ -1,5 +1,8 @@
 export const SOURCE_PRESET = '预设';
 export const SOURCE_WORLDBOOK = '世界书';
+export const COMPONENT_SCOPE_GLOBAL = '全局';
+export const COMPONENT_SCOPE_PRESET = '预设';
+export const COMPONENT_SCOPE_CHARACTER = '角色';
 
 const textOf = (value) => String(value ?? '').trim();
 
@@ -34,6 +37,48 @@ export function getCurrentPresetNameSafe(targetWindow, context) {
 export function getPresetNamesSafe(targetWindow, context) {
   const current = getCurrentPresetNameSafe(targetWindow, context);
   return current ? [current] : [];
+}
+
+export function getCurrentCharacterNameSafe(context) {
+  const characterId = Number.isInteger(context?.characterId) ? context.characterId : context?.this_chid;
+  const character = context?.characters?.[characterId];
+  return textOf(character?.name || character?.data?.name || context?.name1 || context?.characterName);
+}
+
+export function normalizeComponentScope(scope) {
+  const clean = textOf(scope);
+  if (clean === COMPONENT_SCOPE_PRESET) return COMPONENT_SCOPE_PRESET;
+  if (clean === COMPONENT_SCOPE_CHARACTER || clean === '角色卡') return COMPONENT_SCOPE_CHARACTER;
+  return COMPONENT_SCOPE_GLOBAL;
+}
+
+export function getComponentBindingName(scope, targetWindow, context, fallback = '') {
+  const normalized = normalizeComponentScope(scope);
+  if (normalized === COMPONENT_SCOPE_PRESET) return getCurrentPresetNameSafe(targetWindow, context) || textOf(fallback);
+  if (normalized === COMPONENT_SCOPE_CHARACTER) return getCurrentCharacterNameSafe(context) || textOf(fallback);
+  return '';
+}
+
+export function normalizeComponent(component, targetWindow, context) {
+  const scope = normalizeComponentScope(component?.scope);
+  return {
+    ...component,
+    scope,
+    bindName: component?.bindName || getComponentBindingName(scope, targetWindow, context, component?.source),
+  };
+}
+
+export function componentMatchesContext(component, targetWindow, context) {
+  const item = normalizeComponent(component, targetWindow, context);
+  if (item.enabled === false) return false;
+  if (item.scope === COMPONENT_SCOPE_GLOBAL) return true;
+  if (item.scope === COMPONENT_SCOPE_PRESET) return textOf(item.bindName) === getCurrentPresetNameSafe(targetWindow, context);
+  if (item.scope === COMPONENT_SCOPE_CHARACTER) return textOf(item.bindName) === getCurrentCharacterNameSafe(context);
+  return false;
+}
+
+export function getActiveComponentsForContext(components, targetWindow, context) {
+  return (Array.isArray(components) ? components : []).filter((item) => componentMatchesContext(item, targetWindow, context));
 }
 
 export function getWorldbookNamesSafe(targetWindow, context, selectedWorldNames = []) {
