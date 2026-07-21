@@ -323,6 +323,42 @@ assert.deepEqual(
   ['', 'worldInfoBefore', '', 'charDescription', '', 'worldInfoAfter', ''],
 );
 
+const messagesFromInUsePresetFallback = await buildExternalStatusbarMessages({
+  targetWindow: {
+    getPreset: (name) => name === 'in_use' ? {
+      prompt_order: [{ character_id: 100001, order: [
+        { identifier: 'char-info-open', enabled: true },
+        { identifier: 'charDescription', enabled: true },
+        { identifier: 'char-info-close', enabled: true },
+      ] }],
+      prompts: [
+        { identifier: 'char-info-open', role: 'system', content: '<char_info>' },
+        { identifier: 'char-info-close', role: 'system', content: '</char_info>' },
+      ],
+    } : null,
+  },
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Generate footer widgets only.',
+  components: [],
+  promptSourceItems: [
+    { scope: 'preset', name: 'Only selected static prompt', role: 'system', content: 'Selected static prompt' },
+  ],
+});
+
+assert.deepEqual(
+  messagesFromInUsePresetFallback.slice(0, 3).map((message) => message.content),
+  ['<char_info>', 'Card fields description', '</char_info>'],
+);
+assert.deepEqual(
+  createRuntimePromptDiagnostics({
+    context,
+    promptSourceItems: messagesFromInUsePresetFallback.promptSourceItems,
+    runtimeInsertions: messagesFromInUsePresetFallback.runtimeInsertions,
+  }).selectedPromptMarkers,
+  ['charDescription'],
+);
+
 const messagesFromLockedWorldInfoSources = await buildExternalStatusbarMessages({
   targetWindow: {
     TavernHelper: {

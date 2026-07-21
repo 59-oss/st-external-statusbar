@@ -14,15 +14,15 @@ import {
   getCurrentPresetNameSafe,
   getPresetNamesSafe,
   normalizeComponent,
-} from './component-sources.js?ver=0.3.47';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.47';
-import { injectStatusbarText } from './inject-utils.js?ver=0.3.47';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.47';
-import { createPromptLog } from './prompt-log.js?ver=0.3.47';
-import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.47';
+} from './component-sources.js?ver=0.3.48';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.48';
+import { injectStatusbarText } from './inject-utils.js?ver=0.3.48';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.48';
+import { createPromptLog } from './prompt-log.js?ver=0.3.48';
+import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.48';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.47';
+const EXTENSION_VERSION = '0.3.48';
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -117,7 +117,7 @@ async function buildMessages(latestMessage) {
   const components = getEnabledComponents();
   const promptSourceItems = await ensurePromptSourceItemsForGeneration();
   const messages = await buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt: settings.taskPrompt, components, promptSourceItems, substituteParams: context.substituteParams });
-  lastRuntimeDiagnostics = createRuntimePromptDiagnostics({ context, promptSourceItems, runtimeInsertions: messages.runtimeInsertions });
+  lastRuntimeDiagnostics = createRuntimePromptDiagnostics({ context, promptSourceItems: messages.promptSourceItems || promptSourceItems, runtimeInsertions: messages.runtimeInsertions });
   return messages;
 }
 

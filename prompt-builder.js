@@ -92,6 +92,13 @@ function getUserName(context) {
 }
 
 function getCurrentPreset(targetWindow, context) {
+  const candidates = [targetWindow, targetWindow?.parent, globalThis].filter(Boolean);
+  for (const candidate of candidates) {
+    try {
+      const preset = candidate?.getPreset?.('in_use');
+      if (preset && Array.isArray(preset.prompts)) return preset;
+    } catch {}
+  }
   const helper = targetWindow?.TavernHelper;
   const presetName = textOf(helper?.getCurrentPresetName?.() || helper?.getSelectedPresetName?.() || context?.presetName);
   if (!presetName) return null;
