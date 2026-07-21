@@ -21,6 +21,11 @@ function createDiagnostics(messages) {
   return { emptyBlocks };
 }
 
+function mergeDiagnostics(baseDiagnostics, runtimeDiagnostics) {
+  if (!runtimeDiagnostics || typeof runtimeDiagnostics !== 'object') return baseDiagnostics;
+  return { ...baseDiagnostics, ...runtimeDiagnostics };
+}
+
 export function createPromptLog({
   apiUrl = '',
   apiKey = '',
@@ -30,6 +35,7 @@ export function createPromptLog({
   messages = [],
   createdAt = new Date().toISOString(),
   extensionVersion = '',
+  runtimeDiagnostics = {},
 } = {}) {
   const cleanMessages = (Array.isArray(messages) ? messages : []).map((message) => ({
     role: textOf(message?.role || 'user'),
@@ -44,7 +50,7 @@ export function createPromptLog({
       hasApiKey: Boolean(apiKey),
       extensionVersion: textOf(extensionVersion),
     },
-    diagnostics: createDiagnostics(cleanMessages),
+    diagnostics: mergeDiagnostics(createDiagnostics(cleanMessages), runtimeDiagnostics),
     request: {
       apiUrl: textOf(apiUrl),
       model: textOf(model),

@@ -16,7 +16,8 @@ export function collectSelectedPromptSourceItems(groups, promptSelections = {}) 
   for (const group of Array.isArray(groups) ? groups : []) {
     if (!group?.loaded || !Array.isArray(group.items)) continue;
     for (const item of group.items) {
-      if (!item?.key || !String(item?.content ?? '').trim()) continue;
+      if (!item?.key) continue;
+      if (!String(item?.content ?? '').trim() && !String(item?.markerType ?? '').trim()) continue;
       const checked = Object.prototype.hasOwnProperty.call(store, item.key) ? store[item.key] !== false : item.enabled !== false;
       if (checked) selected.push(item);
     }

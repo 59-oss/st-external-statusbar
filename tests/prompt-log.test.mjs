@@ -38,3 +38,22 @@ assert.equal(diagnosticLog.summary.extensionVersion, '0.3.38');
 assert.deepEqual(diagnosticLog.diagnostics.emptyBlocks, [
   { tag: 'user_info', startIndex: 0, endIndex: 1 },
 ]);
+
+const runtimeDiagnosticLog = JSON.parse(createPromptLog({
+  runtimeDiagnostics: {
+    characterFields: {
+      characterId: '0',
+      descriptionLength: 24,
+      personalityLength: 8,
+      scenarioLength: 0,
+    },
+  },
+  messages: [],
+}));
+
+assert.deepEqual(runtimeDiagnosticLog.diagnostics.characterFields, {
+  characterId: '0',
+  descriptionLength: 24,
+  personalityLength: 8,
+  scenarioLength: 0,
+});

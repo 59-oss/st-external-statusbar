@@ -52,3 +52,15 @@ const selectedPromptItems = collectSelectedPromptSourceItems([
 
 assert.deepEqual(selectedPromptItems.map((item) => item.name), ['System', 'Lore']);
 assert.equal(selectedPromptItems[0].role, 'system');
+
+const selectedEmptyMarkerItems = collectSelectedPromptSourceItems([
+  {
+    loaded: true,
+    items: [
+      { key: 'char_desc_marker', scope: '棰勮', name: 'Char Description', markerType: 'charDescription', role: 'system', content: '', enabled: true },
+      { key: 'empty_normal_prompt', scope: '棰勮', name: 'Empty Normal', role: 'system', content: '', enabled: true },
+    ],
+  },
+], {});
+
+assert.deepEqual(selectedEmptyMarkerItems.map((item) => item.name), ['Char Description']);

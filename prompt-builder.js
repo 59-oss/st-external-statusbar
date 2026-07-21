@@ -69,6 +69,23 @@ function getRuntimeMarkerContent(markerType, context) {
   }
 }
 
+export function createRuntimePromptDiagnostics({ context, promptSourceItems } = {}) {
+  const markerTypes = (Array.isArray(promptSourceItems) ? promptSourceItems : [])
+    .map((item) => textOf(item?.markerType))
+    .filter(Boolean);
+  return {
+    characterFields: {
+      characterId: textOf(context?.characterId) || textOf(context?.this_chid),
+      descriptionLength: getCharacterField(context, 'description').length,
+      personalityLength: getCharacterField(context, 'personality').length,
+      scenarioLength: getCharacterField(context, 'scenario').length,
+      dialogueExamplesLength: getCharacterField(context, 'mes_example').length,
+      personaLength: getCharacterField(context, 'persona').length,
+    },
+    selectedPromptMarkers: [...new Set(markerTypes)],
+  };
+}
+
 function getUserName(context) {
   return textOf(context?.name1 || context?.userName || 'User');
 }

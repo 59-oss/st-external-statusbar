@@ -17,12 +17,12 @@ import {
 } from './component-sources.js';
 import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js';
 import { injectStatusbarText } from './inject-utils.js';
-import { buildExternalStatusbarMessages } from './prompt-builder.js';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js';
 import { createPromptLog } from './prompt-log.js';
 import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.39';
+const EXTENSION_VERSION = '0.3.40';
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -67,6 +67,7 @@ let importCandidates = [];
 let importGroups = [];
 let activeWorldbookGroupIndex = null;
 let generationAbortController = null;
+let lastRuntimeDiagnostics = {};
 
 const $t = (selectorOrHtml) => $(selectorOrHtml, targetDoc);
 const textOf = (value) => String(value ?? '').trim();
@@ -115,6 +116,7 @@ async function buildMessages(latestMessage) {
   const context = getContext();
   const components = getEnabledComponents();
   const promptSourceItems = await ensurePromptSourceItemsForGeneration();
+  lastRuntimeDiagnostics = createRuntimePromptDiagnostics({ context, promptSourceItems });
   return buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt: settings.taskPrompt, components, promptSourceItems, substituteParams: context.substituteParams });
 }
 
@@ -131,7 +133,7 @@ async function callExternalApi(latestMessage, signal) {
   const model = textOf(settings.apiModel);
   if (!apiUrl || !model) throw new Error('请先在“API 设置”里填写 API 地址和模型名称。');
   const messages = await buildMessages(latestMessage);
-  settings.lastPromptLog = createPromptLog({ apiUrl, apiKey: settings.apiKey, model, maxTokens: settings.maxTokens, temperature: settings.temperature, messages, extensionVersion: EXTENSION_VERSION });
+  settings.lastPromptLog = createPromptLog({ apiUrl, apiKey: settings.apiKey, model, maxTokens: settings.maxTokens, temperature: settings.temperature, messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics: lastRuntimeDiagnostics });
   saveSettings();
   $t('#st-esg-prompt-log').val(settings.lastPromptLog);
   console.log(`[${EXTENSION_ID}] 外置状态栏 API 请求提示词`, JSON.parse(settings.lastPromptLog));

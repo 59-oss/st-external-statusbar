@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildExternalStatusbarMessages } from '../prompt-builder.js';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from '../prompt-builder.js';
 
 const targetWindow = {
   TavernHelper: {
@@ -188,3 +188,22 @@ assert.equal(messagesWithNativeMarkers[7].content, 'Reply');
 assert.ok(!messagesWithNativeMarkers.some((message) => message.content === '世界书占位'));
 assert.ok(!messagesWithNativeMarkers.some((message) => message.content === '聊天历史占位'));
 assert.ok(!messagesWithNativeMarkers.some((message) => message.content === '扫描时占位'));
+
+const runtimeDiagnostics = createRuntimePromptDiagnostics({
+  context,
+  promptSourceItems: [
+    { markerType: 'charDescription', content: '' },
+    { markerType: 'charPersonality', content: '' },
+    { markerType: 'chatHistory', content: '' },
+  ],
+});
+
+assert.deepEqual(runtimeDiagnostics.characterFields, {
+  characterId: '0',
+  descriptionLength: 'Card fields description'.length,
+  personalityLength: 'Card fields personality'.length,
+  scenarioLength: 'Card fields scenario'.length,
+  dialogueExamplesLength: 'Card fields examples'.length,
+  personaLength: 'Card fields persona'.length,
+});
+assert.deepEqual(runtimeDiagnostics.selectedPromptMarkers, ['charDescription', 'charPersonality', 'chatHistory']);
