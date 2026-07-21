@@ -18,9 +18,10 @@ import {
 import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js';
 import { buildExternalStatusbarMessages } from './prompt-builder.js';
 import { createPromptLog } from './prompt-log.js';
+import { syncPromptSelectionsFromGroups } from './source-selection.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.24';
+const EXTENSION_VERSION = '0.3.25';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 const SOURCE_MODE_PROMPT = 'prompt';
@@ -424,10 +425,18 @@ function syncSelectionForChecks(checks) {
   });
 }
 
+function syncPromptSelectionsFromLoadedGroups(groups = importGroups) {
+  if (settings.sourceMode !== SOURCE_MODE_PROMPT) return 0;
+  const before = JSON.stringify(settings.promptSelections || {});
+  settings.promptSelections = syncPromptSelectionsFromGroups(groups, settings.promptSelections);
+  if (JSON.stringify(settings.promptSelections || {}) !== before) saveSettings();
+  return groups.reduce((sum, group) => sum + (group?.loaded && Array.isArray(group.items) ? group.items.length : 0), 0);
+}
+
 function getSourceModeInfo() {
   return settings.sourceMode === SOURCE_MODE_IMPORT
     ? { title: '导入组件库模式', desc: '当前勾选只用于导入组件库，不影响外置生成提示词。', checkedText: '准备导入', uncheckedText: '不导入', actionText: '导入勾选条目' }
-    : { title: '提示词模式', desc: '当前勾选会作为外置生成时启用的来源，不会导入组件库。', checkedText: '生成启用', uncheckedText: '生成停用', actionText: '已自动保存勾选' };
+    : { title: '提示词模式', desc: '点击“同步勾选状态”会用酒馆当前预设/世界书启用状态覆盖这里的勾选。', checkedText: '生成启用', uncheckedText: '生成停用', actionText: '已自动保存勾选' };
 }
 
 function renderSourceModeUi() {
@@ -435,6 +444,7 @@ function renderSourceModeUi() {
   $t('#st-esg-source-mode').val(settings.sourceMode);
   $t('#st-esg-source-mode-title').text(info.title);
   $t('#st-esg-source-mode-desc').text(info.desc);
+  $t('#st-esg-scan-components span').text(settings.sourceMode === SOURCE_MODE_PROMPT ? '同步勾选状态' : '同步来源');
   $t('#st-esg-import-components span').text(info.actionText);
   $t('#st-esg-import-target-scope').closest('label').toggle(settings.sourceMode === SOURCE_MODE_IMPORT);
 }
@@ -502,10 +512,11 @@ async function scanImportCandidates() {
     ...collectPresetImportGroups({ targetWindow, context, presetName: settings.activeSourcePreset }),
     ...collectWorldbookImportGroups({ targetWindow, context, selectedWorldNames }),
   ];
+  const syncedCount = syncPromptSelectionsFromLoadedGroups(importGroups);
   activeWorldbookGroupIndex = null;
   importCandidates = importGroups.flatMap((group) => group.items || []);
   renderImportCandidates();
-  setStatus(`已列出 ${importGroups.length} 个来源。世界书会在进入详情页时加载。`);
+  setStatus(settings.sourceMode === SOURCE_MODE_PROMPT ? `已同步 ${syncedCount} 个已加载条目的酒馆勾选状态。世界书会在进入详情页时同步。` : `已列出 ${importGroups.length} 个来源。世界书会在进入详情页时加载。`);
 }
 
 async function loadImportGroup(groupIndex) {
@@ -518,6 +529,7 @@ async function loadImportGroup(groupIndex) {
   try {
     group.items = await collectWorldbookImportCandidates(targetWindow, group.source);
     group.loaded = true;
+    syncPromptSelectionsFromLoadedGroups([group]);
     setStatus(`已加载 ${group.source}：${group.items.length} 个条目。`);
   } catch (error) {
     group.error = error?.message || '加载失败';
