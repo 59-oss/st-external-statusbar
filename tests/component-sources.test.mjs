@@ -119,6 +119,39 @@ assert.deepEqual(
 );
 assert.ok(namedPlaceholderGroups[0].items.every((item) => item.locked));
 
+const inUseOrderOnlyPlaceholderGroups = collectPresetImportGroups({
+  targetWindow: {
+    getPreset: (name) => name === 'in_use' ? {
+      prompt_order: [{ character_id: 100001, order: [
+        { identifier: 'bkgd-open', enabled: true },
+        { identifier: 'worldInfoBefore', enabled: true },
+        { identifier: 'charDescription', enabled: true },
+        { identifier: 'worldInfoAfter', enabled: true },
+        { identifier: 'bkgd-close', enabled: true },
+      ] }],
+      prompts: [
+        { identifier: 'bkgd-open', role: 'system', content: '<bkgd_info>' },
+        { identifier: 'bkgd-close', role: 'system', content: '</bkgd_info>' },
+      ],
+    } : null,
+    getPresetManager: () => ({ getSelectedPresetName: () => 'In Use Order Preset' }),
+    TavernHelper: {
+      getPresetNames: () => ['In Use Order Preset'],
+      getPreset: () => null,
+    },
+  },
+  context,
+});
+assert.deepEqual(
+  inUseOrderOnlyPlaceholderGroups[0].items.map((item) => item.name),
+  ['bkgd-open', 'World Info (before)', 'Char Description', 'World Info (after)', 'bkgd-close'],
+);
+assert.deepEqual(
+  inUseOrderOnlyPlaceholderGroups[0].items.map((item) => item.markerType || ''),
+  ['', 'worldInfoBefore', 'charDescription', 'worldInfoAfter', ''],
+);
+assert.deepEqual(inUseOrderOnlyPlaceholderGroups[0].items.map((item) => Boolean(item.locked)), [false, true, true, true, false]);
+
 const orderOnlyPresetGroups = collectPresetImportGroups({
   targetWindow: {
     getPresetManager: () => ({ getSelectedPresetName: () => 'Order Only Preset' }),

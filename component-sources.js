@@ -377,6 +377,45 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
   const candidates = [];
   const inUsePreset = (!textOf(presetName) || selected === currentPreset) ? getInUsePresetSafe(targetWindow) : null;
   if (inUsePreset) {
+    const groupName = `预设：${selected}`;
+    const prompts = Array.isArray(inUsePreset.prompts) ? inUsePreset.prompts : [];
+    const promptMap = new Map(prompts.map((prompt) => [textOf(prompt?.identifier || prompt?.id || prompt?.name), prompt]).filter(([id]) => Boolean(id)));
+    const orderList = getActivePresetPromptOrder(inUsePreset);
+    const used = new Set();
+    const addPrompt = (rawPrompt, sourceOrder, enabled = rawPrompt?.enabled !== false) => {
+      const identifier = textOf(rawPrompt?.identifier || rawPrompt?.id || rawPrompt?.name);
+      const markerPrompt = getNativePlaceholderMarker(targetWindow, rawPrompt, context);
+      const prompt = markerPrompt || rawPrompt;
+      addImportCandidate(candidates, groupName, selected, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content, enabled, {
+        sourceOrder,
+        sourceUid: prompt?.identifier || prompt?.id || identifier,
+        role: prompt?.role || rawPrompt?.role,
+        markerType: prompt?.markerType,
+        locked: Boolean(prompt?.locked || prompt?.markerType),
+      });
+    };
+    if (orderList.length) {
+      orderList.forEach((orderItem, sourceOrder) => {
+        const identifier = textOf(orderItem?.identifier);
+        if (!identifier) return;
+        used.add(identifier);
+        const rawPrompt = promptMap.get(identifier);
+        const markerPrompt = getBuiltinMarkerPrompt(identifier, context);
+        const prompt = rawPrompt?.marker || (markerPrompt && !textOf(rawPrompt?.content)) ? markerPrompt : rawPrompt || markerPrompt;
+        if (!prompt) return;
+        addPrompt(prompt, sourceOrder, orderItem?.enabled !== false);
+      });
+      prompts.forEach((rawPrompt, index) => {
+        const identifier = textOf(rawPrompt?.identifier || rawPrompt?.id || rawPrompt?.name);
+        if (identifier && used.has(identifier)) return;
+        addPrompt(rawPrompt, orderList.length + index);
+      });
+    } else {
+      prompts.forEach((rawPrompt, sourceOrder) => {
+        addPrompt(rawPrompt, sourceOrder);
+      });
+    }
+    return [{ scope: SOURCE_PRESET, group: groupName, source: selected, loaded: true, items: candidates }];
     inUsePreset.prompts.forEach((rawPrompt, sourceOrder) => {
       const identifier = textOf(rawPrompt?.identifier || rawPrompt?.id || rawPrompt?.name);
       const markerPrompt = getNativePlaceholderMarker(targetWindow, rawPrompt, context);
