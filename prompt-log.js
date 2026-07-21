@@ -1,5 +1,26 @@
 const textOf = (value) => String(value ?? '');
 
+function getTrailingOpenTag(content) {
+  const match = textOf(content).trim().match(/<([A-Za-z0-9_\-\u4e00-\u9fff]+)(?:\s[^>]*)?>$/u);
+  return match?.[1] || '';
+}
+
+function isOnlyClosingTag(content, tag) {
+  return textOf(content).trim() === `</${tag}>`;
+}
+
+function createDiagnostics(messages) {
+  const emptyBlocks = [];
+  for (let index = 0; index < messages.length - 1; index += 1) {
+    const tag = getTrailingOpenTag(messages[index]?.content);
+    if (!tag) continue;
+    if (isOnlyClosingTag(messages[index + 1]?.content, tag)) {
+      emptyBlocks.push({ tag, startIndex: index, endIndex: index + 1 });
+    }
+  }
+  return { emptyBlocks };
+}
+
 export function createPromptLog({
   apiUrl = '',
   apiKey = '',
@@ -8,6 +29,7 @@ export function createPromptLog({
   temperature = '',
   messages = [],
   createdAt = new Date().toISOString(),
+  extensionVersion = '',
 } = {}) {
   const cleanMessages = (Array.isArray(messages) ? messages : []).map((message) => ({
     role: textOf(message?.role || 'user'),
@@ -20,7 +42,9 @@ export function createPromptLog({
       messageCount: cleanMessages.length,
       characterCount,
       hasApiKey: Boolean(apiKey),
+      extensionVersion: textOf(extensionVersion),
     },
+    diagnostics: createDiagnostics(cleanMessages),
     request: {
       apiUrl: textOf(apiUrl),
       model: textOf(model),

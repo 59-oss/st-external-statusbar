@@ -131,7 +131,7 @@ async function callExternalApi(latestMessage, signal) {
   const model = textOf(settings.apiModel);
   if (!apiUrl || !model) throw new Error('请先在“API 设置”里填写 API 地址和模型名称。');
   const messages = await buildMessages(latestMessage);
-  settings.lastPromptLog = createPromptLog({ apiUrl, apiKey: settings.apiKey, model, maxTokens: settings.maxTokens, temperature: settings.temperature, messages });
+  settings.lastPromptLog = createPromptLog({ apiUrl, apiKey: settings.apiKey, model, maxTokens: settings.maxTokens, temperature: settings.temperature, messages, extensionVersion: EXTENSION_VERSION });
   saveSettings();
   $t('#st-esg-prompt-log').val(settings.lastPromptLog);
   console.log(`[${EXTENSION_ID}] 外置状态栏 API 请求提示词`, JSON.parse(settings.lastPromptLog));
