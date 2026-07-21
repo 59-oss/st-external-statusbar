@@ -75,6 +75,15 @@ function normalizeRole(role) {
   return 'system';
 }
 
+function buildPromptSourceMessages(promptSourceItems) {
+  return (Array.isArray(promptSourceItems) ? promptSourceItems : [])
+    .map((item) => ({
+      role: normalizeRole(item?.role),
+      content: textOf(item?.content),
+    }))
+    .filter((message) => textOf(message.content));
+}
+
 function buildComponentText(components) {
   return components?.length
     ? components.map((item, index) => `【组件 ${index + 1}｜${item.scope || '全局'}｜${item.name || '未命名'}】\n${item.content || ''}`).join('\n\n')
@@ -98,9 +107,10 @@ function buildPluginTaskMessage({ taskPrompt, components, latestMessage }) {
   ].join('\n');
 }
 
-export function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components }) {
-  const preset = getCurrentPreset(targetWindow, context);
-  const presetMessages = getOrderedEnabledPrompts(preset)
+export function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, promptSourceItems }) {
+  const sourceMessages = buildPromptSourceMessages(promptSourceItems);
+  const preset = sourceMessages.length ? null : getCurrentPreset(targetWindow, context);
+  const presetMessages = sourceMessages.length ? sourceMessages : getOrderedEnabledPrompts(preset)
     .map((prompt) => ({
       role: normalizeRole(prompt?.role),
       content: replaceMacros(prompt?.content, { context, latestMessage }),

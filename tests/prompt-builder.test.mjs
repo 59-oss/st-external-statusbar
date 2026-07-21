@@ -63,3 +63,27 @@ const messagesWithoutPresetName = buildExternalStatusbarMessages({
 
 assert.equal(messagesWithoutPresetName[0].role, 'system');
 assert.equal(messagesWithoutPresetName.at(-1).role, 'user');
+
+const messagesFromSelectedSources = buildExternalStatusbarMessages({
+  targetWindow: {
+    TavernHelper: {
+      getCurrentPresetName: () => 'Main Preset',
+      getPreset: () => ({
+        prompts: [{ identifier: 'should-not-duplicate', role: 'system', content: 'Should not be used when source items exist' }],
+      }),
+    },
+  },
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Generate footer widgets only.',
+  components: [],
+  promptSourceItems: [
+    { scope: '预设', name: 'Ako order 1', role: 'system', content: 'Selected preset prompt' },
+    { scope: '世界书', name: 'Status lore', content: 'Selected worldbook entry' },
+  ],
+});
+
+assert.deepEqual(messagesFromSelectedSources.map((message) => message.role), ['system', 'system', 'user']);
+assert.equal(messagesFromSelectedSources[0].content, 'Selected preset prompt');
+assert.equal(messagesFromSelectedSources[1].content, 'Selected worldbook entry');
+assert.ok(!messagesFromSelectedSources.some((message) => message.content.includes('Should not be used')));

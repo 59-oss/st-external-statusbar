@@ -252,7 +252,7 @@ export async function collectComponentImportCandidates({ targetWindow, context, 
   for (const presetName of getPresetNamesSafe(targetWindow, context)) {
     const enabledMap = getPresetPromptEnabledMap(targetWindow, presetName);
     getPresetEntriesSafe(targetWindow, presetName).forEach((prompt, sourceOrder) => {
-      addImportCandidate(candidates, `预设：${presetName}`, presetName, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content, isPresetPromptEnabled(prompt, enabledMap), { sourceOrder, sourceUid: prompt?.identifier || prompt?.id });
+    addImportCandidate(candidates, `预设：${presetName}`, presetName, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content, isPresetPromptEnabled(prompt, enabledMap), { sourceOrder, sourceUid: prompt?.identifier || prompt?.id, role: prompt?.role });
     });
   }
   for (const worldName of getWorldbookNamesSafe(targetWindow, context, selectedWorldNames)) {
@@ -270,7 +270,7 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
   const candidates = [];
   const enabledMap = getPresetPromptEnabledMap(targetWindow, selected);
   getPresetEntriesSafe(targetWindow, selected).forEach((prompt, sourceOrder) => {
-    addImportCandidate(candidates, `预设：${selected}`, selected, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content, isPresetPromptEnabled(prompt, enabledMap), { sourceOrder, sourceUid: prompt?.identifier || prompt?.id });
+    addImportCandidate(candidates, `预设：${selected}`, selected, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content, isPresetPromptEnabled(prompt, enabledMap), { sourceOrder, sourceUid: prompt?.identifier || prompt?.id, role: prompt?.role });
   });
   return [{ scope: SOURCE_PRESET, group: `预设：${selected}`, source: selected, loaded: true, items: candidates }];
 }

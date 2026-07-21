@@ -18,10 +18,10 @@ import {
 import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js';
 import { buildExternalStatusbarMessages } from './prompt-builder.js';
 import { createPromptLog } from './prompt-log.js';
-import { syncPromptSelectionsFromGroups } from './source-selection.js';
+import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.27';
+const EXTENSION_VERSION = '0.3.28';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 const SOURCE_MODE_PROMPT = 'prompt';
@@ -112,10 +112,11 @@ function cleanGeneratedText(text) {
   return tags.reduce((current, tag) => current.split(tag).join(''), String(text || '')).trim();
 }
 
-function buildMessages(latestMessage) {
+async function buildMessages(latestMessage) {
   const context = getContext();
   const components = getEnabledComponents();
-  return buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt: settings.taskPrompt, components });
+  const promptSourceItems = await ensurePromptSourceItemsForGeneration();
+  return buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt: settings.taskPrompt, components, promptSourceItems });
 }
 
 function setGeneratingState(isGenerating) {
@@ -130,7 +131,7 @@ async function callExternalApi(latestMessage, signal) {
   const apiUrl = normalizeChatCompletionsUrl(settings.apiUrl);
   const model = textOf(settings.apiModel);
   if (!apiUrl || !model) throw new Error('请先在“API 设置”里填写 API 地址和模型名称。');
-  const messages = buildMessages(latestMessage);
+  const messages = await buildMessages(latestMessage);
   settings.lastPromptLog = createPromptLog({ apiUrl, apiKey: settings.apiKey, model, maxTokens: settings.maxTokens, temperature: settings.temperature, messages });
   saveSettings();
   $t('#st-esg-prompt-log').val(settings.lastPromptLog);
@@ -431,6 +432,27 @@ function syncPromptSelectionsFromLoadedGroups(groups = importGroups) {
   settings.promptSelections = syncPromptSelectionsFromGroups(groups, settings.promptSelections);
   if (JSON.stringify(settings.promptSelections || {}) !== before) saveSettings();
   return groups.reduce((sum, group) => sum + (group?.loaded && Array.isArray(group.items) ? group.items.length : 0), 0);
+}
+
+async function ensurePromptSourceItemsForGeneration() {
+  if (settings.sourceMode !== SOURCE_MODE_PROMPT) return [];
+  if (!importGroups.length) await scanImportCandidates();
+  const activeWorldbookGroups = importGroups.filter((group) => group?.scope === SOURCE_WORLDBOOK && group.category !== 'inactive' && !group.loaded && !group.loading);
+  for (const group of activeWorldbookGroups) {
+    group.loading = true;
+    try {
+      group.items = await collectWorldbookImportCandidates(targetWindow, group.source);
+      group.loaded = true;
+      syncPromptSelectionsFromLoadedGroups([group]);
+    } catch (error) {
+      group.error = error?.message || '加载失败';
+    } finally {
+      group.loading = false;
+    }
+  }
+  importCandidates = importGroups.flatMap((group) => group.items || []);
+  renderImportCandidates({ renderPreset: false });
+  return collectSelectedPromptSourceItems(importGroups, settings.promptSelections);
 }
 
 function getSourceModeInfo() {
