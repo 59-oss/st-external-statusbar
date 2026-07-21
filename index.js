@@ -15,7 +15,7 @@ import {
 } from './component-sources.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.18';
+const EXTENSION_VERSION = '0.3.19';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 const SOURCE_MODE_PROMPT = 'prompt';
@@ -421,9 +421,19 @@ function renderSourcePresetSelect() {
   select.html(names.map((name) => `<option value="${escapeHtml(name)}" ${name === current ? 'selected' : ''}>${escapeHtml(name)}</option>`).join(''));
 }
 
+function getSelectedGlobalWorldbookNamesFromDom() {
+  const selectedLabels = $t('#world_info option:selected')
+    .map((_, option) => textOf($(option).text()))
+    .get()
+    .filter(Boolean);
+  if (selectedLabels.length) return selectedLabels;
+  const value = $t('#world_info').val() || [];
+  return (Array.isArray(value) ? value : [value]).map(textOf).filter(Boolean);
+}
+
 async function scanImportCandidates() {
   const context = getContext();
-  const selectedWorldNames = $t('#world_info').val() || [];
+  const selectedWorldNames = getSelectedGlobalWorldbookNamesFromDom();
   settings.activeSourcePreset = textOf($t('#st-esg-source-preset').val()) || settings.activeSourcePreset || getCurrentPresetNameSafe(targetWindow, context);
   saveSettings();
   importGroups = [

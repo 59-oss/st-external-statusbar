@@ -64,6 +64,20 @@ assert.deepEqual(worldbookGroups.map((group) => group.source), ['状态栏世界
 assert.deepEqual(worldbookGroups.map((group) => group.categoryLabel), ['全局世界书', '角色世界书', '聊天世界书', '未启用世界书']);
 assert.ok(worldbookGroups.every((group) => group.group === group.source));
 
+const idBackedWorldbooks = collectWorldbookImportGroups({
+  targetWindow: {
+    TavernHelper: {
+      getWorldbookNames: () => ['Visible Global Book'],
+      getGlobalWorldbookNames: () => ['Visible Global Book'],
+      getCharWorldbookNames: () => ({}),
+      getChatWorldbookName: () => '',
+    },
+  },
+  context: {},
+  selectedWorldNames: ['15'],
+});
+assert.deepEqual(idBackedWorldbooks.map((group) => group.source), ['Visible Global Book']);
+
 const lazyWorldbookItems = await collectWorldbookImportCandidates(targetWindow, '状态栏世界书');
 assert.equal(worldbookReadCount, 1);
 assert.deepEqual(lazyWorldbookItems.map((item) => item.name), ['背包组件']);

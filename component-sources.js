@@ -117,7 +117,11 @@ export function getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames
     if (targetWindow?.TavernHelper?.getWorldbookNames) allNames = targetWindow.TavernHelper.getWorldbookNames() || [];
     else if (Array.isArray(targetWindow?.world_names)) allNames = targetWindow.world_names;
   } catch (_) {}
-  const selected = Array.isArray(selectedWorldNames) ? selectedWorldNames : [selectedWorldNames];
+  const allNameSet = new Set(allNames.map(textOf).filter(Boolean));
+  const selected = (Array.isArray(selectedWorldNames) ? selectedWorldNames : [selectedWorldNames])
+    .map(textOf)
+    .filter(Boolean)
+    .filter((name) => !allNameSet.size || allNameSet.has(name));
   const groups = [];
   const seen = new Set();
   const add = (name, category, categoryLabel) => {
