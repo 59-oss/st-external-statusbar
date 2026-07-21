@@ -17,12 +17,14 @@ export function addImportCandidate(candidates, group, source, scope, name, conte
 }
 
 export function getPresetEntriesSafe(targetWindow, name) {
-  const preset = targetWindow?.TavernHelper?.getPreset?.(name);
+  let preset = null;
+  try { preset = targetWindow?.TavernHelper?.getPreset?.(name) || null; } catch (_) {}
   return preset && Array.isArray(preset.prompts) ? preset.prompts : [];
 }
 
 export function getPresetPromptEnabledMap(targetWindow, name) {
-  const preset = targetWindow?.TavernHelper?.getPreset?.(name);
+  let preset = null;
+  try { preset = targetWindow?.TavernHelper?.getPreset?.(name) || null; } catch (_) {}
   const lists = Array.isArray(preset?.prompt_order) ? preset.prompt_order : [];
   const order = lists.find((list) => Array.isArray(list?.order))?.order || [];
   return new Map(order.map((entry) => [textOf(entry?.identifier), entry?.enabled !== false]).filter(([identifier]) => Boolean(identifier)));

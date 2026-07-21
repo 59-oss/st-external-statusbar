@@ -46,3 +46,23 @@ assert.equal(markerGroups[0].items.find((item) => item.markerType === 'charDescr
 assert.equal(markerGroups[0].items.find((item) => item.markerType === 'charPersonality').content, '角色性格正文');
 assert.equal(markerGroups[0].items.find((item) => item.markerType === 'scenario').enabled, false);
 assert.ok(markerGroups[0].items.find((item) => item.markerType === 'chatHistory').content.includes('聊天历史'));
+
+const markerGroupsWithoutHelperPreset = collectPresetImportGroups({
+  targetWindow: {
+    TavernHelper: {
+      getPreset: () => {
+        throw new Error('helper preset unavailable');
+      },
+    },
+  },
+  context: markerContext,
+  presetName: 'Broken Preset',
+});
+
+assert.deepEqual(markerGroupsWithoutHelperPreset, [{
+  scope: '预设',
+  group: '预设：Broken Preset',
+  source: 'Broken Preset',
+  loaded: true,
+  items: [],
+}]);

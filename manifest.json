@@ -3,9 +3,9 @@
   "loading_order": 100,
   "requires": [],
   "optional": [],
-  "js": "index.js?ver=0.3.33",
+  "js": "index.js?ver=0.3.34",
   "author": "Local developer",
-  "version": "0.3.33",
+  "version": "0.3.34",
   "homePage": "https://github.com/59-oss/st-external-statusbar",
   "auto_update": true,
   "minimum_client_version": "1.12.13"

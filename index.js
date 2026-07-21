@@ -255,6 +255,7 @@ function switchTab(tabName) {
   $t(`.st-esg-tab-panel[data-tab-panel="${nextTab}"]`).addClass('active');
   settings.activeTab = nextTab;
   saveSettings();
+  if (nextTab === 'sources' && !importGroups.length) scanImportCandidates();
 }
 
 function getDialog() { return targetDoc.getElementById('st-esg-dialog'); }
