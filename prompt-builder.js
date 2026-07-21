@@ -17,7 +17,12 @@ function getUserName(context) {
 function getCurrentPreset(targetWindow, context) {
   const helper = targetWindow?.TavernHelper;
   const presetName = textOf(helper?.getCurrentPresetName?.() || helper?.getSelectedPresetName?.() || context?.presetName);
-  return helper?.getPreset?.(presetName) || null;
+  if (!presetName) return null;
+  try {
+    return helper?.getPreset?.(presetName) || null;
+  } catch {
+    return null;
+  }
 }
 
 function getPromptIdentifier(prompt) {

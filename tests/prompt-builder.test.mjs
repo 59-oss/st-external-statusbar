@@ -44,3 +44,22 @@ assert.ok(!messages.some((message) => message.content.includes('SHOULD_NOT_EXIST
 assert.ok(messages[2].content.includes('Generate footer widgets only.'));
 assert.ok(messages[2].content.includes('<roleplay_options />'));
 assert.ok(messages[2].content.includes('Latest assistant prose'));
+
+const messagesWithoutPresetName = buildExternalStatusbarMessages({
+  targetWindow: {
+    TavernHelper: {
+      getCurrentPresetName: () => '',
+      getSelectedPresetName: () => '',
+      getPreset: (name) => {
+        throw new Error(`Preset ${name} not found`);
+      },
+    },
+  },
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Generate footer widgets only.',
+  components: [],
+});
+
+assert.equal(messagesWithoutPresetName[0].role, 'system');
+assert.equal(messagesWithoutPresetName.at(-1).role, 'user');
