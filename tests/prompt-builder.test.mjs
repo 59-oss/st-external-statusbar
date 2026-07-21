@@ -47,6 +47,8 @@ assert.equal(messages[3].role, 'assistant');
 assert.equal(messages[3].content, 'Reply');
 assert.ok(messages[4].content.includes('Generate footer widgets only.'));
 assert.ok(messages[4].content.includes('<roleplay_options />'));
+assert.ok(!messages[4].content.includes('【组件 1'));
+assert.ok(!messages[4].content.includes('Choices'));
 assert.ok(!messages[4].content.includes('最新助手回复'));
 assert.ok(!messages[4].content.includes('Latest assistant prose'));
 
@@ -108,3 +110,4 @@ const messagesWithMacroSubstitution = buildExternalStatusbarMessages({
 assert.equal(messagesWithMacroSubstitution[0].content, 'Preset for CharName and UserName');
 assert.ok(messagesWithMacroSubstitution.at(-1).content.includes('Task for UserName'));
 assert.ok(messagesWithMacroSubstitution.at(-1).content.includes('Component for CharName'));
+assert.ok(!messagesWithMacroSubstitution.at(-1).content.includes('Macro component'));

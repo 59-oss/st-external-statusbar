@@ -106,7 +106,7 @@ function buildPromptSourceMessages(promptSourceItems, substituteParams) {
 
 function buildComponentText(components, substituteParams) {
   return components?.length
-    ? components.map((item, index) => `【组件 ${index + 1}｜${item.scope || '全局'}｜${item.name || '未命名'}】\n${applySubstituteParams(item.content || '', substituteParams)}`).join('\n\n')
+    ? components.map((item) => applySubstituteParams(item.content || '', substituteParams)).filter(textOf).join('\n\n')
     : '当前没有启用的组件。请根据生成任务指令输出状态栏。';
 }
 
