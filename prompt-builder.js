@@ -39,11 +39,16 @@ function getPromptIdentifier(prompt) {
   return textOf(prompt?.identifier || prompt?.id || prompt?.name);
 }
 
+function getActivePresetPromptOrder(preset) {
+  const lists = Array.isArray(preset?.prompt_order) ? preset.prompt_order : [];
+  const preferred = lists.find((list) => String(list?.character_id) === '100001' && Array.isArray(list?.order));
+  return (preferred || lists.find((list) => Array.isArray(list?.order)))?.order || [];
+}
+
 function getOrderedEnabledPrompts(preset) {
   const prompts = Array.isArray(preset?.prompts) ? preset.prompts : [];
   const promptMap = new Map(prompts.map((prompt) => [getPromptIdentifier(prompt), prompt]).filter(([id]) => Boolean(id)));
-  const orderList = (Array.isArray(preset?.prompt_order) ? preset.prompt_order : [])
-    .find((item) => Array.isArray(item?.order))?.order || [];
+  const orderList = getActivePresetPromptOrder(preset);
   const used = new Set();
   const ordered = [];
   for (const orderItem of orderList) {

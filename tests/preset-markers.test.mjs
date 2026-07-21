@@ -5,6 +5,12 @@ const markerTargetWindow = {
   TavernHelper: {
     getPreset: () => ({
       prompt_order: [{
+        character_id: 100000,
+        order: [
+          { identifier: 'custom-system', enabled: true },
+        ],
+      }, {
+        character_id: 100001,
         order: [
           { identifier: 'worldInfoBefore', enabled: true },
           { identifier: 'charDescription', enabled: true },
@@ -14,6 +20,11 @@ const markerTargetWindow = {
         ],
       }],
       prompts: [
+        { identifier: 'worldInfoBefore', name: 'World Info (before)', marker: true, content: '' },
+        { identifier: 'charDescription', name: 'Char Description', marker: true, content: '' },
+        { identifier: 'charPersonality', name: 'Char Personality', marker: true, content: '' },
+        { identifier: 'scenario', name: 'Scenario', marker: true, content: '' },
+        { identifier: 'chatHistory', name: 'Chat History', marker: true, content: '' },
         { identifier: 'custom-system', name: 'Custom System', role: 'system', content: 'Custom prompt' },
       ],
     }),

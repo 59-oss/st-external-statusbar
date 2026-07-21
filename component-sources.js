@@ -25,9 +25,14 @@ export function getPresetEntriesSafe(targetWindow, name) {
 export function getPresetPromptEnabledMap(targetWindow, name) {
   let preset = null;
   try { preset = targetWindow?.TavernHelper?.getPreset?.(name) || null; } catch (_) {}
-  const lists = Array.isArray(preset?.prompt_order) ? preset.prompt_order : [];
-  const order = lists.find((list) => Array.isArray(list?.order))?.order || [];
+  const order = getActivePresetPromptOrder(preset);
   return new Map(order.map((entry) => [textOf(entry?.identifier), entry?.enabled !== false]).filter(([identifier]) => Boolean(identifier)));
+}
+
+function getActivePresetPromptOrder(preset) {
+  const lists = Array.isArray(preset?.prompt_order) ? preset.prompt_order : [];
+  const preferred = lists.find((list) => String(list?.character_id) === '100001' && Array.isArray(list?.order));
+  return (preferred || lists.find((list) => Array.isArray(list?.order)))?.order || [];
 }
 
 function getSelectedCharacter(context) {
@@ -308,8 +313,7 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
   try { preset = targetWindow?.TavernHelper?.getPreset?.(selected) || null; } catch (_) {}
   const prompts = Array.isArray(preset?.prompts) ? preset.prompts : [];
   const promptMap = new Map(prompts.map((prompt) => [textOf(prompt?.identifier || prompt?.id || prompt?.name), prompt]).filter(([id]) => Boolean(id)));
-  const orderList = (Array.isArray(preset?.prompt_order) ? preset.prompt_order : [])
-    .find((list) => Array.isArray(list?.order))?.order || [];
+  const orderList = getActivePresetPromptOrder(preset);
   const enabledMap = getPresetPromptEnabledMap(targetWindow, selected);
   const used = new Set();
 
@@ -317,7 +321,9 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
     const identifier = textOf(orderItem?.identifier);
     if (!identifier) return;
     used.add(identifier);
-    const prompt = promptMap.get(identifier) || getBuiltinMarkerPrompt(identifier, context);
+    const rawPrompt = promptMap.get(identifier);
+    const markerPrompt = getBuiltinMarkerPrompt(identifier, context);
+    const prompt = rawPrompt?.marker || (markerPrompt && !textOf(rawPrompt?.content)) ? markerPrompt : rawPrompt || markerPrompt;
     if (!prompt) return;
     addImportCandidate(candidates, `预设：${selected}`, selected, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content, orderItem?.enabled !== false, {
       sourceOrder,
