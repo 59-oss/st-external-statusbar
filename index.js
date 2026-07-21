@@ -1,16 +1,19 @@
 import { getContext } from '../../../st-context.js';
 import {
-  collectComponentImportCandidates,
   COMPONENT_SCOPE_CHARACTER,
   COMPONENT_SCOPE_GLOBAL,
   COMPONENT_SCOPE_PRESET,
+  SOURCE_WORLDBOOK,
+  collectPresetImportGroups,
+  collectWorldbookImportCandidates,
+  collectWorldbookImportGroups,
   getActiveComponentsForContext,
   getComponentBindingName,
   normalizeComponent,
 } from './component-sources.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.5';
+const EXTENSION_VERSION = '0.3.6';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 
@@ -40,6 +43,7 @@ const targetDoc = targetWindow.document;
 let initialized = false;
 let settings = { ...DEFAULT_SETTINGS };
 let importCandidates = [];
+let importGroups = [];
 
 const $t = (selectorOrHtml) => $(selectorOrHtml, targetDoc);
 const textOf = (value) => String(value ?? '').trim();
@@ -294,27 +298,54 @@ function addComponent() {
 async function scanImportCandidates() {
   const context = getContext();
   const selectedWorldNames = $t('#world_info').val() || [];
-  const candidates = await collectComponentImportCandidates({ targetWindow, context, selectedWorldNames });
-  importCandidates = candidates;
+  importGroups = [
+    ...collectPresetImportGroups({ targetWindow, context }),
+    ...collectWorldbookImportGroups({ targetWindow, context, selectedWorldNames }),
+  ];
+  importCandidates = importGroups.flatMap((group) => group.items || []);
   renderImportCandidates();
-  setStatus(`已列出 ${candidates.length} 个预设/世界书条目。`);
+  setStatus(`已列出 ${importGroups.length} 个来源。世界书会在展开时加载。`);
+}
+
+async function loadImportGroup(groupIndex) {
+  const group = importGroups[groupIndex];
+  if (!group || group.loaded || group.loading || group.scope !== SOURCE_WORLDBOOK) return;
+  group.loading = true;
+  renderImportCandidates();
+  try {
+    group.items = await collectWorldbookImportCandidates(targetWindow, group.source);
+    group.loaded = true;
+    setStatus(`已加载 ${group.source}：${group.items.length} 个条目。`);
+  } catch (error) {
+    group.error = error?.message || '加载失败';
+    setStatus(`加载 ${group.source} 失败。`);
+  } finally {
+    group.loading = false;
+    importCandidates = importGroups.flatMap((item) => item.items || []);
+    renderImportCandidates();
+  }
 }
 
 function renderImportCandidates() {
   const box = $t('#st-esg-import-candidates');
   if (!box.length) return;
-  if (!importCandidates.length) { box.html('<div class="st-esg-empty">还没有可选来源。点击“刷新可选来源”后，会按预设和世界书分组列出条目。</div>'); return; }
+  if (!importGroups.length) { box.html('<div class="st-esg-empty">还没有可选来源。点击“刷新可选来源”后，会按预设和世界书分组列出条目。</div>'); return; }
   const scopes = new Map();
-  importCandidates.forEach((item, index) => {
-    const scopeName = item.scope || '其他';
-    const groupName = item.group || item.source || '其他';
-    if (!scopes.has(scopeName)) scopes.set(scopeName, new Map());
-    const groups = scopes.get(scopeName);
-    if (!groups.has(groupName)) groups.set(groupName, []);
-    groups.get(groupName).push({ ...item, index });
+  importGroups.forEach((group, groupIndex) => {
+    const scopeName = group.scope || '其他';
+    if (!scopes.has(scopeName)) scopes.set(scopeName, []);
+    scopes.get(scopeName).push({ ...group, groupIndex });
   });
-  const countItems = (groups) => [...groups.values()].reduce((sum, items) => sum + items.length, 0);
-  box.html([...scopes.entries()].map(([scopeName, groups]) => `<details class="st-esg-import-scope" open><summary class="st-esg-import-scope-summary"><span>${escapeHtml(scopeName)}</span><em>${countItems(groups)} 个条目</em></summary><div class="st-esg-import-scope-body">${[...groups.entries()].map(([groupName, items]) => `<details class="st-esg-import-group"><summary class="st-esg-import-group-head"><div><div class="st-esg-import-group-title">${escapeHtml(groupName)}</div><div class="st-esg-card-desc">${items.length} 个可导入条目</div></div><button class="menu_button st-esg-import-group-toggle" type="button">本组全选</button></summary><div class="st-esg-import-group-list">${items.map((item) => `<details class="st-esg-import-item" data-index="${item.index}"><summary class="st-esg-import-item-summary"><label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" /><span>${escapeHtml(item.name)}</span></label><em>展开</em></summary><pre>${escapeHtml(item.content.slice(0, 1200))}</pre></details>`).join('')}</div></details>`).join('')}</div></details>`).join(''));
+  const countItems = (groups) => groups.reduce((sum, group) => sum + (group.loaded ? group.items.length : 0), 0);
+  const groupBody = (group) => {
+    if (group.loading) return '<div class="st-esg-empty st-esg-empty-small">正在加载这本世界书...</div>';
+    if (group.error) return `<div class="st-esg-empty st-esg-empty-small">${escapeHtml(group.error)}</div>`;
+    if (!group.loaded) return '<div class="st-esg-empty st-esg-empty-small">展开后才加载条目，避免刷新卡顿。</div>';
+    if (!group.items.length) return '<div class="st-esg-empty st-esg-empty-small">没有可导入条目</div>';
+    return group.items.map((item, itemIndex) => `<details class="st-esg-import-item" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><summary class="st-esg-import-item-summary"><label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" /><span>${escapeHtml(item.name)}</span></label><em>展开</em></summary><pre>${escapeHtml(item.content.slice(0, 1200))}</pre></details>`).join('');
+  };
+  box.html([...scopes.entries()].map(([scopeName, groups]) => `<details class="st-esg-import-scope" open><summary class="st-esg-import-scope-summary"><span>${escapeHtml(scopeName)}</span><em>${countItems(groups)} 个已加载条目</em></summary><div class="st-esg-import-scope-body">${groups.map((group) => `<details class="st-esg-import-group" data-group-index="${group.groupIndex}" ${group.loaded && group.scope !== SOURCE_WORLDBOOK ? 'open' : ''}><summary class="st-esg-import-group-head"><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loaded ? `${group.items.length} 个可导入条目` : '未加载，点开读取'}</div></div>${group.loaded ? '<button class="menu_button st-esg-import-group-toggle" type="button">本组全选</button>' : ''}</summary><div class="st-esg-import-group-list">${groupBody(group)}</div></details>`).join('')}</div></details>`).join(''));
+  $t('.st-esg-import-group').on('toggle', function () { if (this.open) loadImportGroup(Number($(this).data('group-index'))); });
   $t('.st-esg-import-check').on('click', (event) => event.stopPropagation());
   $t('.st-esg-import-group-toggle').on('click', function (event) {
     event.preventDefault();
@@ -332,7 +363,9 @@ function importCheckedCandidates() {
   const targetScope = textOf($t('#st-esg-import-target-scope').val()) || COMPONENT_SCOPE_GLOBAL;
   const bindName = getComponentBindingName(targetScope, targetWindow, getContext());
   for (const checkbox of checked) {
-    const item = importCandidates[Number($(checkbox).closest('.st-esg-import-item').data('index'))];
+    const row = $(checkbox).closest('.st-esg-import-item');
+    const group = importGroups[Number(row.data('group-index'))];
+    const item = group?.items?.[Number(row.data('item-index'))];
     if (item) settings.components.push({ id: String(Date.now() + Math.random()), name: item.name, scope: targetScope, bindName, content: item.content, enabled: true, source: item.source, sourceType: item.scope });
   }
   saveSettings(); renderComponentList(); $t('.st-esg-import-check').prop('checked', false); setStatus(`已导入 ${checked.length} 个组件。`);

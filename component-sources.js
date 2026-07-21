@@ -153,3 +153,33 @@ export async function collectComponentImportCandidates({ targetWindow, context, 
   }
   return candidates;
 }
+
+export function collectPresetImportGroups({ targetWindow, context }) {
+  return getPresetNamesSafe(targetWindow, context).map((presetName) => {
+    const candidates = [];
+    for (const prompt of getPresetEntriesSafe(targetWindow, presetName)) {
+      addImportCandidate(candidates, `预设：${presetName}`, presetName, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content);
+    }
+    return { scope: SOURCE_PRESET, group: `预设：${presetName}`, source: presetName, loaded: true, items: candidates };
+  });
+}
+
+export function collectWorldbookImportGroups({ targetWindow, context, selectedWorldNames = [] }) {
+  return getWorldbookNamesSafe(targetWindow, context, selectedWorldNames).map((worldName) => ({
+    scope: SOURCE_WORLDBOOK,
+    group: `世界书：${worldName}`,
+    source: worldName,
+    loaded: false,
+    loading: false,
+    items: [],
+  }));
+}
+
+export async function collectWorldbookImportCandidates(targetWindow, worldName) {
+  const candidates = [];
+  const entries = await getWbEntriesSafe(targetWindow, worldName);
+  for (const entry of entries) {
+    addImportCandidate(candidates, `世界书：${worldName}`, worldName, SOURCE_WORLDBOOK, getWorldbookEntryName(entry), entry?.content);
+  }
+  return candidates;
+}

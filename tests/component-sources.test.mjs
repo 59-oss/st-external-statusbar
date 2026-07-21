@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import {
   collectComponentImportCandidates,
+  collectPresetImportGroups,
+  collectWorldbookImportCandidates,
+  collectWorldbookImportGroups,
   getActiveComponentsForContext,
   getPresetNamesSafe,
   getWorldbookNamesSafe,
   normalizeComponent,
 } from '../component-sources.js';
 
+let worldbookReadCount = 0;
 const targetWindow = {
   getPresetManager: () => ({ getSelectedPresetName: () => 'Ako 预设' }),
   TavernHelper: {
@@ -21,10 +25,13 @@ const targetWindow = {
     getGlobalWorldbookNames: () => ['状态栏世界书'],
     getCharWorldbookNames: () => ({ primary: '', additional: [] }),
     getChatWorldbookName: () => '',
-    getWorldbook: (name) => name === '状态栏世界书' ? {
-      1: { uid: 1, comment: '背包组件', key: ['背包'], content: '<bag>空</bag>' },
-    } : {
-      2: { uid: 2, comment: '错误世界书条目', content: '<wrong />' },
+    getWorldbook: (name) => {
+      worldbookReadCount += 1;
+      return name === '状态栏世界书' ? {
+        1: { uid: 1, comment: '背包组件', key: ['背包'], content: '<bag>空</bag>' },
+      } : {
+        2: { uid: 2, comment: '错误世界书条目', content: '<wrong />' },
+      };
     },
   },
 };
@@ -38,6 +45,18 @@ const context = {
 
 assert.deepEqual(getPresetNamesSafe(targetWindow, context), ['Ako 预设']);
 assert.deepEqual(getWorldbookNamesSafe(targetWindow, context), ['状态栏世界书']);
+
+worldbookReadCount = 0;
+const presetGroups = collectPresetImportGroups({ targetWindow, context });
+const worldbookGroups = collectWorldbookImportGroups({ targetWindow, context });
+assert.equal(worldbookReadCount, 0);
+assert.equal(presetGroups[0].loaded, true);
+assert.equal(worldbookGroups[0].loaded, false);
+assert.deepEqual(worldbookGroups.map((group) => group.source), ['状态栏世界书']);
+
+const lazyWorldbookItems = await collectWorldbookImportCandidates(targetWindow, '状态栏世界书');
+assert.equal(worldbookReadCount, 1);
+assert.deepEqual(lazyWorldbookItems.map((item) => item.name), ['背包组件']);
 
 const candidates = await collectComponentImportCandidates({ targetWindow, context });
 
