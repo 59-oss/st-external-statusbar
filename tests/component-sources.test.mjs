@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  SOURCE_WORLDBOOK,
   collectComponentImportCandidates,
   collectPresetImportGroups,
   collectWorldbookImportCandidates,
@@ -105,4 +106,27 @@ assert.equal(normalizeComponent({ scope: '世界书' }, targetWindow, context).s
 assert.deepEqual(
   getActiveComponentsForContext(components, targetWindow, context).map((item) => item.name),
   ['全局状态栏', '当前预设状态栏', '当前角色状态栏', '旧世界书归属'],
+);
+
+const orderedWorldbookItems = await collectWorldbookImportCandidates({
+  TavernHelper: {
+    getWorldbook: () => [
+      { uid: 30, comment: 'Component start', content: 'start' },
+      { uid: 10, comment: 'Component middle', content: 'middle' },
+      { uid: 20, comment: 'Component end', content: 'end' },
+    ],
+  },
+}, 'Ordered Book');
+assert.deepEqual(orderedWorldbookItems.map((item) => item.name), ['Component start', 'Component middle', 'Component end']);
+assert.deepEqual(orderedWorldbookItems.map((item) => item.sourceOrder), [0, 1, 2]);
+
+const shuffledImportedComponents = [
+  { name: 'Component end', scope: '鍏ㄥ眬', sourceType: SOURCE_WORLDBOOK, source: 'Ordered Book', sourceOrder: 2, content: 'end' },
+  { name: 'Manual note', scope: '鍏ㄥ眬', sourceType: 'manual', content: 'manual' },
+  { name: 'Component start', scope: '鍏ㄥ眬', sourceType: SOURCE_WORLDBOOK, source: 'Ordered Book', sourceOrder: 0, content: 'start' },
+  { name: 'Component middle', scope: '鍏ㄥ眬', sourceType: SOURCE_WORLDBOOK, source: 'Ordered Book', sourceOrder: 1, content: 'middle' },
+];
+assert.deepEqual(
+  getActiveComponentsForContext(shuffledImportedComponents, targetWindow, context).map((item) => item.name),
+  ['Component start', 'Component middle', 'Component end', 'Manual note'],
 );

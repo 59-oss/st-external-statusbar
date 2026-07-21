@@ -15,7 +15,7 @@ import {
 } from './component-sources.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.19';
+const EXTENSION_VERSION = '0.3.20';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 const SOURCE_MODE_PROMPT = 'prompt';
@@ -567,11 +567,12 @@ function importCheckedCandidates() {
     const item = group?.items?.[Number(row.data('item-index'))];
     if (!item) continue;
     const existingIndex = findImportedComponentIndex(item, targetScope, bindName);
+    const importedComponent = { name: item.name, scope: targetScope, bindName, content: item.content, enabled: true, source: item.source, sourceType: item.scope, sourceOrder: item.sourceOrder, sourceUid: item.sourceUid };
     if (existingIndex >= 0) {
-      settings.components[existingIndex] = { ...settings.components[existingIndex], name: item.name, scope: targetScope, bindName, content: item.content, enabled: true, source: item.source, sourceType: item.scope };
+      settings.components[existingIndex] = { ...settings.components[existingIndex], ...importedComponent };
       updated += 1;
     } else {
-      settings.components.push({ id: String(Date.now() + Math.random()), name: item.name, scope: targetScope, bindName, content: item.content, enabled: true, source: item.source, sourceType: item.scope });
+      settings.components.push({ id: String(Date.now() + Math.random()), ...importedComponent });
       added += 1;
     }
   }

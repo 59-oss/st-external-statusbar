@@ -6,13 +6,13 @@ export const COMPONENT_SCOPE_CHARACTER = '角色';
 
 const textOf = (value) => String(value ?? '').trim();
 
-export function addImportCandidate(candidates, group, source, scope, name, content, enabled = true) {
+export function addImportCandidate(candidates, group, source, scope, name, content, enabled = true, metadata = {}) {
   const clean = textOf(content);
   if (!clean) return;
   const cleanName = textOf(name) || '未命名条目';
   const key = `${group}::${source}::${scope}::${cleanName}::${clean.slice(0, 200)}`;
   if (!candidates.some((item) => item.key === key)) {
-    candidates.push({ key, group, source, scope, name: cleanName, content: clean, enabled: enabled !== false });
+    candidates.push({ key, group, source, scope, name: cleanName, content: clean, enabled: enabled !== false, ...metadata });
   }
 }
 
@@ -95,7 +95,23 @@ export function componentMatchesContext(component, targetWindow, context) {
 }
 
 export function getActiveComponentsForContext(components, targetWindow, context) {
-  return (Array.isArray(components) ? components : []).filter((item) => componentMatchesContext(item, targetWindow, context));
+  return (Array.isArray(components) ? components : [])
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .filter(({ item }) => componentMatchesContext(item, targetWindow, context))
+    .sort((left, right) => {
+      const leftOrder = Number(left.item?.sourceOrder);
+      const rightOrder = Number(right.item?.sourceOrder);
+      const leftWorldbook = left.item?.sourceType === SOURCE_WORLDBOOK && Number.isFinite(leftOrder);
+      const rightWorldbook = right.item?.sourceType === SOURCE_WORLDBOOK && Number.isFinite(rightOrder);
+      if (leftWorldbook && rightWorldbook) {
+        const sourceCompare = textOf(left.item.source).localeCompare(textOf(right.item.source));
+        if (sourceCompare) return sourceCompare;
+        if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+      }
+      if (leftWorldbook !== rightWorldbook) return leftWorldbook ? -1 : 1;
+      return left.originalIndex - right.originalIndex;
+    })
+    .map(({ item }) => item);
 }
 
 export function getWorldbookNamesSafe(targetWindow, context, selectedWorldNames = []) {
@@ -195,9 +211,9 @@ export async function collectComponentImportCandidates({ targetWindow, context, 
   }
   for (const worldName of getWorldbookNamesSafe(targetWindow, context, selectedWorldNames)) {
     const entries = await getWbEntriesSafe(targetWindow, worldName);
-    for (const entry of entries) {
-      addImportCandidate(candidates, `世界书：${worldName}`, worldName, SOURCE_WORLDBOOK, getWorldbookEntryName(entry), entry?.content, isWorldbookEntryEnabled(entry));
-    }
+    entries.forEach((entry, sourceOrder) => {
+      addImportCandidate(candidates, `世界书：${worldName}`, worldName, SOURCE_WORLDBOOK, getWorldbookEntryName(entry), entry?.content, isWorldbookEntryEnabled(entry), { sourceOrder, sourceUid: entry?.uid });
+    });
   }
   return candidates;
 }
@@ -229,8 +245,8 @@ export function collectWorldbookImportGroups({ targetWindow, context, selectedWo
 export async function collectWorldbookImportCandidates(targetWindow, worldName) {
   const candidates = [];
   const entries = await getWbEntriesSafe(targetWindow, worldName);
-  for (const entry of entries) {
-    addImportCandidate(candidates, `世界书：${worldName}`, worldName, SOURCE_WORLDBOOK, getWorldbookEntryName(entry), entry?.content, isWorldbookEntryEnabled(entry));
-  }
+  entries.forEach((entry, sourceOrder) => {
+    addImportCandidate(candidates, `世界书：${worldName}`, worldName, SOURCE_WORLDBOOK, getWorldbookEntryName(entry), entry?.content, isWorldbookEntryEnabled(entry), { sourceOrder, sourceUid: entry?.uid });
+  });
   return candidates;
 }
