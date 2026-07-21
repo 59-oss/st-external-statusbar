@@ -16,10 +16,11 @@ import {
   normalizeComponent,
 } from './component-sources.js';
 import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js';
+import { buildExternalStatusbarMessages } from './prompt-builder.js';
 import { createPromptLog } from './prompt-log.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.23';
+const EXTENSION_VERSION = '0.3.24';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 const SOURCE_MODE_PROMPT = 'prompt';
@@ -65,6 +66,7 @@ let settings = { ...DEFAULT_SETTINGS };
 let importCandidates = [];
 let importGroups = [];
 let activeWorldbookGroupIndex = null;
+let generationAbortController = null;
 
 const $t = (selectorOrHtml) => $(selectorOrHtml, targetDoc);
 const textOf = (value) => String(value ?? '').trim();
@@ -100,10 +102,6 @@ function getLatestAssistantMessage(chat) {
   return null;
 }
 
-function getRecentChatText(chat, limit = 8) {
-  return chat.slice(-limit).map((item) => `${item?.is_user ? '用户' : '助手'}：${item?.mes || ''}`).join('\n\n');
-}
-
 function getEnabledComponents() {
   return getActiveComponentsForContext(settings.components, targetWindow, getContext());
 }
@@ -116,16 +114,18 @@ function cleanGeneratedText(text) {
 function buildMessages(latestMessage) {
   const context = getContext();
   const components = getEnabledComponents();
-  const componentText = components.length
-    ? components.map((item, index) => `【组件 ${index + 1}｜${item.scope || '全局'}｜${item.name || '未命名'}】\n${item.content || ''}`).join('\n\n')
-    : '当前没有启用的组件。请根据生成任务指令输出状态栏。';
-  return [
-    { role: 'system', content: ['你是 SillyTavern 的外置文末状态栏生成器。', '你只生成文末状态栏/文末组件，不续写正文，不解释，不输出分析过程。', '输出必须尽量贴合最近正文的语言、氛围、角色状态与叙事风格。'].join('\n') },
-    { role: 'user', content: [`生成任务：${settings.taskPrompt}`, '', '启用组件：', componentText, '', '最近聊天记录：', getRecentChatText(context.chat), '', '最新助手回复：', latestMessage.mes, '', '请现在只输出需要追加在正文末尾的状态栏内容。'].join('\n') },
-  ];
+  return buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt: settings.taskPrompt, components });
 }
 
-async function callExternalApi(latestMessage) {
+function setGeneratingState(isGenerating) {
+  const button = $t('#st-esg-generate');
+  if (!button.length) return;
+  button.toggleClass('st-esg-danger-action', isGenerating);
+  button.find('i').attr('class', isGenerating ? 'fa-solid fa-stop' : 'fa-solid fa-sparkles');
+  button.find('span').text(isGenerating ? '停止生成' : '生成状态栏');
+}
+
+async function callExternalApi(latestMessage, signal) {
   const apiUrl = normalizeChatCompletionsUrl(settings.apiUrl);
   const model = textOf(settings.apiModel);
   if (!apiUrl || !model) throw new Error('请先在“API 设置”里填写 API 地址和模型名称。');
@@ -136,6 +136,7 @@ async function callExternalApi(latestMessage) {
   console.log(`[${EXTENSION_ID}] 外置状态栏 API 请求提示词`, JSON.parse(settings.lastPromptLog));
   const response = await fetch(apiUrl, {
     method: 'POST',
+    signal,
     headers: { 'Content-Type': 'application/json', ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}) },
     body: JSON.stringify({ model, messages, max_tokens: Number(settings.maxTokens) || 800, temperature: Number(settings.temperature) || 0.7 }),
   });
@@ -159,13 +160,25 @@ function injectStatusbar(message, text) {
 }
 
 async function generateStatusbar() {
+  if (generationAbortController) {
+    generationAbortController.abort();
+    return '';
+  }
   const context = getContext();
   const latest = getLatestAssistantMessage(context.chat);
   if (!latest) { setStatus('没有找到可用于生成的助手回复。'); return ''; }
   setStatus('正在生成状态栏……');
+  generationAbortController = new AbortController();
+  setGeneratingState(true);
   let result = '';
-  try { result = settings.apiUrl ? await callExternalApi(latest.message) : buildFallbackStatusbar(latest.message); }
-  catch (error) { setStatus(error?.message || '生成失败。'); return ''; }
+  try { result = settings.apiUrl ? await callExternalApi(latest.message, generationAbortController.signal) : buildFallbackStatusbar(latest.message); }
+  catch (error) {
+    setStatus(error?.name === 'AbortError' ? '已停止生成。提示词日志已保留。' : error?.message || '生成失败。');
+    return '';
+  } finally {
+    generationAbortController = null;
+    setGeneratingState(false);
+  }
   settings.lastGenerated = result;
   saveSettings();
   $t('#st-esg-preview').val(result);

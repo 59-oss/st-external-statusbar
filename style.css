@@ -307,6 +307,8 @@
 .st-esg-secondary-action { min-height: 36px; padding-inline: 15px !important; border-radius: 999px !important; }
 .st-esg-primary-action { color: #fff !important; border-color: #000 !important; background: #000 !important; }
 .st-esg-primary-action:hover { color: #fff !important; background: #222 !important; }
+.st-esg-danger-action { color: #fff !important; border-color: #111 !important; background: #3a3a3a !important; }
+.st-esg-danger-action:hover { color: #fff !important; background: #111 !important; }
 .st-esg-secondary-action { color: #000 !important; border-color: #b8b8b8 !important; background: #fff !important; }
 .st-esg-secondary-action:hover { color: #000 !important; border-color: #000 !important; background: #f0f0f0 !important; }
 
