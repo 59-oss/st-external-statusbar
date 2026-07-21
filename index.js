@@ -13,7 +13,7 @@ import {
 } from './component-sources.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.6';
+const EXTENSION_VERSION = '0.3.7';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 
@@ -277,12 +277,20 @@ function renderComponentList() {
   ];
   list.html(sections.map((section) => {
     const items = settings.components.map((item, index) => ({ ...item, index })).filter((item) => item.scope === section.scope);
-    return `<details class="st-esg-component-section" open><summary class="st-esg-component-section-head"><div><div class="st-esg-import-group-title">${section.title}</div><div class="st-esg-card-desc">${section.desc}</div></div><em>${items.length} 个</em></summary><div class="st-esg-component-section-body">${items.length ? items.map((item) => `<details class="st-esg-component-item" data-index="${item.index}"><summary class="st-esg-component-item-head"><label class="st-esg-checkbox"><input class="st-esg-component-enabled" type="checkbox" ${item.enabled === false ? '' : 'checked'} /><span>${escapeHtml(item.name || '未命名组件')}</span></label>${item.bindName ? `<em>${escapeHtml(item.bindName)}</em>` : ''}<button class="menu_button st-esg-component-delete" type="button">删除</button></summary><pre>${escapeHtml(item.content || '')}</pre></details>`).join('') : '<div class="st-esg-empty st-esg-empty-small">暂无组件</div>'}</div></details>`;
+    return `<details class="st-esg-component-section" open><summary class="st-esg-component-section-head"><div><div class="st-esg-import-group-title">${section.title}</div><div class="st-esg-card-desc">${section.desc}</div></div><em>${items.length} 个</em></summary><div class="st-esg-component-section-body">${items.length ? items.map((item) => `<details class="st-esg-component-item" data-index="${item.index}"><summary class="st-esg-component-item-head"><label class="st-esg-checkbox"><input class="st-esg-component-enabled" type="checkbox" ${item.enabled === false ? '' : 'checked'} /><span>${escapeHtml(item.name || '未命名组件')}</span></label>${item.bindName ? `<em>${escapeHtml(item.bindName)}</em>` : ''}<button class="menu_button st-esg-component-delete" type="button">删除</button></summary><div class="st-esg-component-preview" data-loaded="false"></div></details>`).join('') : '<div class="st-esg-empty st-esg-empty-small">暂无组件</div>'}</div></details>`;
   }).join(''));
   saveSettings();
   $t('.st-esg-component-enabled').on('click', (event) => event.stopPropagation());
   $t('.st-esg-component-enabled').on('change', function () { settings.components[Number($(this).closest('.st-esg-component-item').data('index'))].enabled = Boolean($(this).prop('checked')); saveSettings(); });
   $t('.st-esg-component-delete').on('click', function (event) { event.preventDefault(); event.stopPropagation(); settings.components.splice(Number($(this).closest('.st-esg-component-item').data('index')), 1); saveSettings(); renderComponentList(); });
+  $t('.st-esg-component-item').on('toggle', function () {
+    if (!this.open) return;
+    const preview = this.querySelector('.st-esg-component-preview');
+    if (!preview || preview.dataset.loaded === 'true') return;
+    const item = settings.components[Number($(this).data('index'))];
+    preview.innerHTML = `<pre>${escapeHtml(item?.content || '')}</pre>`;
+    preview.dataset.loaded = 'true';
+  });
 }
 
 function addComponent() {
@@ -342,10 +350,19 @@ function renderImportCandidates() {
     if (group.error) return `<div class="st-esg-empty st-esg-empty-small">${escapeHtml(group.error)}</div>`;
     if (!group.loaded) return '<div class="st-esg-empty st-esg-empty-small">展开后才加载条目，避免刷新卡顿。</div>';
     if (!group.items.length) return '<div class="st-esg-empty st-esg-empty-small">没有可导入条目</div>';
-    return group.items.map((item, itemIndex) => `<details class="st-esg-import-item" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><summary class="st-esg-import-item-summary"><label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" /><span>${escapeHtml(item.name)}</span></label><em>展开</em></summary><pre>${escapeHtml(item.content.slice(0, 1200))}</pre></details>`).join('');
+    return group.items.map((item, itemIndex) => `<details class="st-esg-import-item" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><summary class="st-esg-import-item-summary"><label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" /><span>${escapeHtml(item.name)}</span></label><em>展开</em></summary><div class="st-esg-import-preview" data-loaded="false"></div></details>`).join('');
   };
   box.html([...scopes.entries()].map(([scopeName, groups]) => `<details class="st-esg-import-scope" open><summary class="st-esg-import-scope-summary"><span>${escapeHtml(scopeName)}</span><em>${countItems(groups)} 个已加载条目</em></summary><div class="st-esg-import-scope-body">${groups.map((group) => `<details class="st-esg-import-group" data-group-index="${group.groupIndex}" ${group.loaded && group.scope !== SOURCE_WORLDBOOK ? 'open' : ''}><summary class="st-esg-import-group-head"><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loaded ? `${group.items.length} 个可导入条目` : '未加载，点开读取'}</div></div>${group.loaded ? '<button class="menu_button st-esg-import-group-toggle" type="button">本组全选</button>' : ''}</summary><div class="st-esg-import-group-list">${groupBody(group)}</div></details>`).join('')}</div></details>`).join(''));
   $t('.st-esg-import-group').on('toggle', function () { if (this.open) loadImportGroup(Number($(this).data('group-index'))); });
+  $t('.st-esg-import-item').on('toggle', function () {
+    if (!this.open) return;
+    const preview = this.querySelector('.st-esg-import-preview');
+    if (!preview || preview.dataset.loaded === 'true') return;
+    const group = importGroups[Number($(this).data('group-index'))];
+    const item = group?.items?.[Number($(this).data('item-index'))];
+    preview.innerHTML = `<pre>${escapeHtml((item?.content || '').slice(0, 1200))}</pre>`;
+    preview.dataset.loaded = 'true';
+  });
   $t('.st-esg-import-check').on('click', (event) => event.stopPropagation());
   $t('.st-esg-import-group-toggle').on('click', function (event) {
     event.preventDefault();
