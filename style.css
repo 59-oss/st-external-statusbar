@@ -165,31 +165,18 @@
 .st-esg-tab-panel { display: none; }
 .st-esg-tab-panel.active { display: block; }
 
-.st-esg-hero,
 .st-esg-card {
   border: 1px solid #d6d6d6;
   border-radius: 16px;
   background: #fff;
 }
 
-.st-esg-hero {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px;
-  margin-bottom: 12px;
-}
-
-.st-esg-hero-title,
 .st-esg-card-title {
   color: #050505;
   font-weight: 760;
 }
 
-.st-esg-hero-title { font-size: 16px; margin-bottom: 6px; }
 .st-esg-card-title { margin-bottom: 4px; }
-.st-esg-hero-desc,
 .st-esg-card-desc { color: #333; font-size: 12px; line-height: 1.6; }
 
 .st-esg-status-pill {
@@ -332,10 +319,8 @@
   .st-esg-title-text { font-size: 16px; }
   .st-esg-kicker { font-size: 10px; }
   .st-esg-panel-body { padding: 10px; }
-  .st-esg-card,
-  .st-esg-hero { padding: 12px; }
+  .st-esg-card { padding: 12px; }
   .st-esg-panel-footer { position: sticky; bottom: 0; z-index: 1; flex-direction: column; align-items: stretch; }
-  .st-esg-hero,
   .st-esg-card-head { flex-direction: column; align-items: stretch; }
   .st-esg-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .st-esg-workflow,

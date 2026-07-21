@@ -35,6 +35,8 @@ export function getCurrentPresetNameSafe(targetWindow, context) {
 }
 
 export function getPresetNamesSafe(targetWindow, context) {
+  const names = targetWindow?.TavernHelper?.getPresetNames?.() || [];
+  if (Array.isArray(names) && names.length) return [...new Set(names.map(textOf).filter(Boolean))];
   const current = getCurrentPresetNameSafe(targetWindow, context);
   return current ? [current] : [];
 }
@@ -82,17 +84,38 @@ export function getActiveComponentsForContext(components, targetWindow, context)
 }
 
 export function getWorldbookNamesSafe(targetWindow, context, selectedWorldNames = []) {
+  return getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames).map((item) => item.name);
+}
+
+export function getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames = []) {
   let globalNames = [];
   let charNames = [];
   let chatName = '';
+  let allNames = [];
   try { globalNames = targetWindow?.TavernHelper?.getGlobalWorldbookNames?.() || []; } catch (_) {}
   try {
     const charBooks = targetWindow?.TavernHelper?.getCharWorldbookNames?.('current') || {};
     charNames = [charBooks.primary, ...(charBooks.additional || [])].filter(Boolean);
   } catch (_) {}
   try { chatName = targetWindow?.TavernHelper?.getChatWorldbookName?.('current') || ''; } catch (_) {}
+  try {
+    if (targetWindow?.TavernHelper?.getWorldbookNames) allNames = targetWindow.TavernHelper.getWorldbookNames() || [];
+    else if (Array.isArray(targetWindow?.world_names)) allNames = targetWindow.world_names;
+  } catch (_) {}
   const selected = Array.isArray(selectedWorldNames) ? selectedWorldNames : [selectedWorldNames];
-  return [...new Set([...charNames, chatName, ...globalNames, ...selected].filter(Boolean))];
+  const groups = [];
+  const seen = new Set();
+  const add = (name, category, categoryLabel) => {
+    const clean = textOf(name);
+    if (!clean || seen.has(clean)) return;
+    seen.add(clean);
+    groups.push({ name: clean, category, categoryLabel });
+  };
+  charNames.forEach((name) => add(name, 'character', '角色世界书'));
+  add(chatName, 'chat', '聊天世界书');
+  [...globalNames, ...selected].forEach((name) => add(name, 'global', '全局世界书'));
+  allNames.forEach((name) => add(name, 'inactive', '未启用世界书'));
+  return groups;
 }
 
 export async function getWbEntriesSafe(targetWindow, name) {
@@ -165,10 +188,12 @@ export function collectPresetImportGroups({ targetWindow, context }) {
 }
 
 export function collectWorldbookImportGroups({ targetWindow, context, selectedWorldNames = [] }) {
-  return getWorldbookNamesSafe(targetWindow, context, selectedWorldNames).map((worldName) => ({
+  return getWorldbookGroupsSafe(targetWindow, context, selectedWorldNames).map((worldbook) => ({
     scope: SOURCE_WORLDBOOK,
-    group: `世界书：${worldName}`,
-    source: worldName,
+    group: `${worldbook.categoryLabel}：${worldbook.name}`,
+    source: worldbook.name,
+    category: worldbook.category,
+    categoryLabel: worldbook.categoryLabel,
     loaded: false,
     loading: false,
     items: [],

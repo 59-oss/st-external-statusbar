@@ -21,10 +21,10 @@ const targetWindow = {
         { id: 'empty', name: '空条目', content: '' },
       ],
     } : { prompts: [{ id: 'wrong', name: '错误预设条目', content: '<wrong />' }] },
-    getWorldbookNames: () => ['状态栏世界书', '不应扫描的未挂载世界书'],
+    getWorldbookNames: () => ['状态栏世界书', '角色绑定世界书', '聊天绑定世界书', '未启用世界书'],
     getGlobalWorldbookNames: () => ['状态栏世界书'],
-    getCharWorldbookNames: () => ({ primary: '', additional: [] }),
-    getChatWorldbookName: () => '',
+    getCharWorldbookNames: () => ({ primary: '角色绑定世界书', additional: [] }),
+    getChatWorldbookName: () => '聊天绑定世界书',
     getWorldbook: (name) => {
       worldbookReadCount += 1;
       return name === '状态栏世界书' ? {
@@ -43,8 +43,8 @@ const context = {
   getWorldInfoNames: () => [],
 };
 
-assert.deepEqual(getPresetNamesSafe(targetWindow, context), ['Ako 预设']);
-assert.deepEqual(getWorldbookNamesSafe(targetWindow, context), ['状态栏世界书']);
+assert.deepEqual(getPresetNamesSafe(targetWindow, context), ['Ako 预设', '不应扫描的旧预设']);
+assert.deepEqual(getWorldbookNamesSafe(targetWindow, context), ['角色绑定世界书', '聊天绑定世界书', '状态栏世界书', '未启用世界书']);
 
 worldbookReadCount = 0;
 const presetGroups = collectPresetImportGroups({ targetWindow, context });
@@ -52,7 +52,8 @@ const worldbookGroups = collectWorldbookImportGroups({ targetWindow, context });
 assert.equal(worldbookReadCount, 0);
 assert.equal(presetGroups[0].loaded, true);
 assert.equal(worldbookGroups[0].loaded, false);
-assert.deepEqual(worldbookGroups.map((group) => group.source), ['状态栏世界书']);
+assert.deepEqual(worldbookGroups.map((group) => group.source), ['角色绑定世界书', '聊天绑定世界书', '状态栏世界书', '未启用世界书']);
+assert.deepEqual(worldbookGroups.map((group) => group.categoryLabel), ['角色世界书', '聊天世界书', '全局世界书', '未启用世界书']);
 
 const lazyWorldbookItems = await collectWorldbookImportCandidates(targetWindow, '状态栏世界书');
 assert.equal(worldbookReadCount, 1);
@@ -60,12 +61,11 @@ assert.deepEqual(lazyWorldbookItems.map((item) => item.name), ['背包组件']);
 
 const candidates = await collectComponentImportCandidates({ targetWindow, context });
 
-assert.equal(candidates.length, 2);
-assert.deepEqual(candidates.map((item) => item.scope), ['预设', '世界书']);
-assert.deepEqual(candidates.map((item) => item.name), ['状态栏格式', '背包组件']);
+assert.equal(candidates.length, 6);
+assert.deepEqual(candidates.map((item) => item.scope), ['预设', '预设', '世界书', '世界书', '世界书', '世界书']);
+assert.deepEqual(candidates.map((item) => item.name), ['状态栏格式', '错误预设条目', '错误世界书条目', '错误世界书条目', '背包组件', '错误世界书条目']);
 assert.ok(candidates.every((item) => item.content.includes('<')));
-assert.ok(!candidates.some((item) => item.group.includes('角色') || item.source.includes('角色')));
-assert.ok(!candidates.some((item) => item.name.includes('错误') || item.source.includes('未挂载')));
+assert.ok(!candidates.some((item) => item.group.includes('角色卡') || item.source.includes('角色卡')));
 
 const components = [
   { name: '全局状态栏', scope: '全局', content: 'global' },
