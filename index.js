@@ -15,7 +15,7 @@ import {
 } from './component-sources.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.16';
+const EXTENSION_VERSION = '0.3.17';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -331,10 +331,8 @@ function findImportedComponentIndex(item, scope, bindName) {
 
 function captureImportViewState() {
   const box = $t('#st-esg-worldbook-candidates');
-  const panelBody = $t('#st-esg-dialog .st-esg-panel-body');
   return {
     listScrollTop: box.length ? box.scrollTop() : 0,
-    panelScrollTop: panelBody.length ? panelBody.scrollTop() : 0,
     openGroups: new Set($t('.st-esg-import-group[open]').toArray().map((node) => Number($(node).data('group-index')))),
   };
 }
@@ -342,20 +340,28 @@ function captureImportViewState() {
 function restoreImportViewState(state) {
   if (!state) return;
   const box = $t('#st-esg-worldbook-candidates');
-  const panelBody = $t('#st-esg-dialog .st-esg-panel-body');
   if (box.length) box.scrollTop(state.listScrollTop || 0);
-  if (panelBody.length) panelBody.scrollTop(state.panelScrollTop || 0);
+}
+
+function scrollWorldbookCardIntoView() {
+  const worldbookBox = targetDoc.getElementById('st-esg-worldbook-candidates');
+  const card = worldbookBox?.closest?.('.st-esg-card');
+  if (!card) return;
+  targetWindow.requestAnimationFrame(() => card.scrollIntoView({ block: 'start', inline: 'nearest' }));
 }
 
 async function openWorldbookDetail(groupIndex) {
   activeWorldbookGroupIndex = Number(groupIndex);
   renderImportCandidates({ renderPreset: false });
+  scrollWorldbookCardIntoView();
   await loadImportGroup(activeWorldbookGroupIndex);
+  scrollWorldbookCardIntoView();
 }
 
 function backToWorldbookList() {
   activeWorldbookGroupIndex = null;
   renderImportCandidates({ renderPreset: false });
+  scrollWorldbookCardIntoView();
 }
 
 function renderSourcePresetSelect() {
@@ -388,6 +394,7 @@ async function loadImportGroup(groupIndex) {
   group.uiOpen = true;
   group.loading = true;
   renderImportCandidates({ renderPreset: false });
+  scrollWorldbookCardIntoView();
   try {
     group.items = await collectWorldbookImportCandidates(targetWindow, group.source);
     group.loaded = true;
@@ -399,6 +406,7 @@ async function loadImportGroup(groupIndex) {
     group.loading = false;
     importCandidates = importGroups.flatMap((item) => item.items || []);
     renderImportCandidates({ renderPreset: false });
+    scrollWorldbookCardIntoView();
   }
 }
 
