@@ -21,7 +21,7 @@ import { createPromptLog } from './prompt-log.js';
 import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.29';
+const EXTENSION_VERSION = '0.3.30';
 const START = '<!-- ST-STATUSBAR-START -->';
 const END = '<!-- ST-STATUSBAR-END -->';
 const SOURCE_MODE_PROMPT = 'prompt';

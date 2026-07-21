@@ -36,14 +36,19 @@ const messages = buildExternalStatusbarMessages({
   components: [{ scope: '全局', name: 'Choices', content: '<roleplay_options />' }],
 });
 
-assert.deepEqual(messages.map((message) => message.role), ['system', 'user', 'user']);
+assert.deepEqual(messages.map((message) => message.role), ['system', 'user', 'user', 'assistant', 'user']);
 assert.equal(messages[0].content, 'Write as CharName for UserName.');
 assert.ok(messages[1].content.includes('用户：Hello'));
 assert.ok(messages[1].content.includes('助手：Reply'));
 assert.ok(!messages.some((message) => message.content.includes('SHOULD_NOT_EXIST')));
-assert.ok(messages[2].content.includes('Generate footer widgets only.'));
-assert.ok(messages[2].content.includes('<roleplay_options />'));
-assert.ok(messages[2].content.includes('Latest assistant prose'));
+assert.equal(messages[2].role, 'user');
+assert.equal(messages[2].content, 'Hello');
+assert.equal(messages[3].role, 'assistant');
+assert.equal(messages[3].content, 'Reply');
+assert.ok(messages[4].content.includes('Generate footer widgets only.'));
+assert.ok(messages[4].content.includes('<roleplay_options />'));
+assert.ok(!messages[4].content.includes('最新助手回复'));
+assert.ok(!messages[4].content.includes('Latest assistant prose'));
 
 const messagesWithoutPresetName = buildExternalStatusbarMessages({
   targetWindow: {
@@ -83,7 +88,7 @@ const messagesFromSelectedSources = buildExternalStatusbarMessages({
   ],
 });
 
-assert.deepEqual(messagesFromSelectedSources.map((message) => message.role), ['system', 'system', 'user']);
+assert.deepEqual(messagesFromSelectedSources.map((message) => message.role), ['system', 'system', 'user', 'assistant', 'user']);
 assert.equal(messagesFromSelectedSources[0].content, 'Selected preset prompt');
 assert.equal(messagesFromSelectedSources[1].content, 'Selected worldbook entry');
 assert.ok(!messagesFromSelectedSources.some((message) => message.content.includes('Should not be used')));

@@ -4,6 +4,16 @@ function getRecentChatText(chat, limit = 12) {
   return (Array.isArray(chat) ? chat : []).slice(-limit).map((item) => `${item?.is_user ? '用户' : '助手'}：${item?.mes || ''}`).join('\n\n');
 }
 
+function getRecentChatMessages(chat, limit = 12) {
+  return (Array.isArray(chat) ? chat : [])
+    .slice(-limit)
+    .map((item) => ({
+      role: item?.is_user ? 'user' : 'assistant',
+      content: textOf(item?.mes),
+    }))
+    .filter((message) => textOf(message.content));
+}
+
 function getCharacterName(context) {
   const characterId = Number.isInteger(context?.characterId) ? context.characterId : context?.this_chid;
   const character = context?.characters?.[characterId];
@@ -100,7 +110,7 @@ function buildComponentText(components, substituteParams) {
     : '当前没有启用的组件。请根据生成任务指令输出状态栏。';
 }
 
-function buildPluginTaskMessage({ taskPrompt, components, latestMessage, substituteParams }) {
+function buildPluginTaskMessage({ taskPrompt, components, substituteParams }) {
   return [
     '请不要续写正文。',
     '请基于上方预设、角色、世界观与已有正文，生成需要追加在正文末尾的文末组件。',
@@ -109,9 +119,6 @@ function buildPluginTaskMessage({ taskPrompt, components, latestMessage, substit
     '',
     '启用组件：',
     buildComponentText(components, substituteParams),
-    '',
-    '最新助手回复：',
-    latestMessage?.mes || '',
     '',
     '现在只输出文末组件内容，不解释，不输出分析过程。',
   ].join('\n');
@@ -133,6 +140,7 @@ export function buildExternalStatusbarMessages({ targetWindow, context, latestMe
   return [
     ...fallback,
     ...presetMessages,
-    { role: 'user', content: buildPluginTaskMessage({ taskPrompt, components, latestMessage, substituteParams }) },
+    ...getRecentChatMessages(context?.chat),
+    { role: 'user', content: buildPluginTaskMessage({ taskPrompt, components, substituteParams }) },
   ];
 }
