@@ -164,6 +164,42 @@ assert.deepEqual(
   ['worldInfoBefore', 'charDescription', 'charPersonality', 'scenario', 'worldInfoAfter', 'dialogueExamples', 'chatHistory'],
 );
 assert.ok(dualPromptOrderGroups[0].items.slice(0, 7).every((item) => item.locked));
+
+const promptArrayOrderGroups = collectPresetImportGroups({
+  targetWindow: {
+    getPresetManager: () => ({ getSelectedPresetName: () => 'Prompt Array Order Preset' }),
+    TavernHelper: {
+      getPresetNames: () => ['Prompt Array Order Preset'],
+      getPreset: () => ({
+        prompts: [
+          { identifier: 'before-shell', role: 'system', content: '<bkgd_info>' },
+          { identifier: 'worldInfoBefore', name: 'World Info (before)', system_prompt: true, marker: true },
+          { identifier: 'char-info-open', role: 'system', content: '<char_info>' },
+          { identifier: 'charDescription', name: 'Char Description', system_prompt: true, marker: true },
+          { identifier: 'charPersonality', name: 'Char Personality', system_prompt: true, marker: true },
+          { identifier: 'char-info-close', role: 'system', content: '</char_info>' },
+          { identifier: 'scenario', name: 'Scenario', system_prompt: true, marker: true },
+          { identifier: 'worldInfoAfter', name: 'World Info (after)', system_prompt: true, marker: true },
+          { identifier: 'history-close', role: 'system', content: '历史对话结束' },
+          { identifier: 'dialogueExamples', name: 'Chat Examples', system_prompt: true, marker: true },
+          { identifier: 'chatHistory', name: 'Chat History', system_prompt: true, marker: true },
+        ],
+      }),
+    },
+  },
+  context,
+  presetName: 'Prompt Array Order Preset',
+});
+assert.deepEqual(
+  promptArrayOrderGroups[0].items.map((item) => item.markerType || ''),
+  ['', 'worldInfoBefore', '', 'charDescription', 'charPersonality', '', 'scenario', 'worldInfoAfter', '', 'dialogueExamples', 'chatHistory'],
+);
+assert.equal(promptArrayOrderGroups[0].debug.orderListLength, 11);
+assert.deepEqual(
+  promptArrayOrderGroups[0].debug.orderListIdentifiers.slice(0, 5),
+  ['before-shell', 'worldInfoBefore', 'char-info-open', 'charDescription', 'charPersonality'],
+);
+
 const namedPlaceholderGroups = collectPresetImportGroups({
   targetWindow: {
     getPreset: (name) => name === 'in_use' ? {
