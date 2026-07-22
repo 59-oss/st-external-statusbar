@@ -31,6 +31,30 @@ assert.deepEqual(nextSelections, {
   implicit_enabled_key: true,
 });
 
+const worldbookSelections = syncPromptSelectionsFromGroups([
+  {
+    scope: '世界书',
+    category: 'global',
+    loaded: true,
+    items: [
+      { key: 'active_world_entry', enabled: true },
+    ],
+  },
+  {
+    scope: '世界书',
+    category: 'inactive',
+    loaded: true,
+    items: [
+      { key: 'inactive_world_entry', enabled: true },
+    ],
+  },
+], {});
+
+assert.deepEqual(worldbookSelections, {
+  active_world_entry: true,
+  inactive_world_entry: false,
+});
+
 const selectedPromptItems = collectSelectedPromptSourceItems([
   {
     loaded: true,

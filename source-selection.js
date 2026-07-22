@@ -2,10 +2,11 @@ export function syncPromptSelectionsFromGroups(groups, currentSelections = {}) {
   const nextSelections = { ...(currentSelections && typeof currentSelections === 'object' ? currentSelections : {}) };
   for (const group of Array.isArray(groups) ? groups : []) {
     if (!group?.loaded || !Array.isArray(group.items)) continue;
+    const inactiveWorldbook = group?.scope === '世界书' && group?.category === 'inactive';
     for (const item of group.items) {
       if (!item?.key) continue;
       if (item?.locked) continue;
-      nextSelections[item.key] = item.enabled !== false;
+      nextSelections[item.key] = inactiveWorldbook ? false : item.enabled !== false;
     }
   }
   return nextSelections;
