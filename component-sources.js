@@ -388,9 +388,10 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
     const promptMap = new Map(prompts.map((prompt) => [textOf(prompt?.identifier || prompt?.id || prompt?.name), prompt]).filter(([id]) => Boolean(id)));
     const orderList = getActivePresetPromptOrder(inUsePreset);
     const scanDebug = {
-      type: 'inUsePreset',
-      orderListIdentifiers: orderList.map((orderItem) => orderItem?.identifier),
-      promptMapKeys: [...promptMap.keys()],
+      branch: 'inUse',
+      orderListLength: orderList.length,
+      orderListIdentifiers: orderList.map((orderItem) => orderItem?.identifier).slice(0, 30),
+      promptMapKeys: [...promptMap.keys()].slice(0, 30),
     };
     const used = new Set();
     const addPrompt = (rawPrompt, sourceOrder, enabled = rawPrompt?.enabled !== false) => {
@@ -433,6 +434,13 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
   const prompts = Array.isArray(preset?.prompts) ? preset.prompts : [];
   const promptMap = new Map(prompts.map((prompt) => [textOf(prompt?.identifier || prompt?.id || prompt?.name), prompt]).filter(([id]) => Boolean(id)));
   const orderList = getActivePresetPromptOrder(preset);
+  const scanDebug = {
+    branch: 'fallback',
+    presetIsNull: !preset,
+    orderListLength: orderList.length,
+    orderListIdentifiers: orderList.map((orderItem) => orderItem?.identifier).slice(0, 30),
+    promptMapKeys: [...promptMap.keys()].slice(0, 30),
+  };
   const enabledMap = getPresetPromptEnabledMap(targetWindow, selected);
   const used = new Set();
 
@@ -462,7 +470,7 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
       role: prompt?.role,
     });
   });
-  return [{ scope: SOURCE_PRESET, group: `预设：${selected}`, source: selected, loaded: true, items: candidates }];
+  return [{ scope: SOURCE_PRESET, group: `预设：${selected}`, source: selected, loaded: true, items: candidates, debug: scanDebug }];
 }
 
 export function collectWorldbookImportGroups({ targetWindow, context, selectedWorldNames = [] }) {

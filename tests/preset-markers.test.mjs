@@ -94,4 +94,11 @@ assert.deepEqual(markerGroupsWithoutHelperPreset, [{
   source: 'Broken Preset',
   loaded: true,
   items: [],
+  debug: {
+    branch: 'fallback',
+    presetIsNull: true,
+    orderListLength: 0,
+    orderListIdentifiers: [],
+    promptMapKeys: [],
+  },
 }]);
