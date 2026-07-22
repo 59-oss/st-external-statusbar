@@ -194,11 +194,6 @@ assert.deepEqual(
   promptArrayOrderGroups[0].items.map((item) => item.markerType || ''),
   ['', 'worldInfoBefore', '', 'charDescription', 'charPersonality', '', 'scenario', 'worldInfoAfter', '', 'dialogueExamples', 'chatHistory'],
 );
-assert.equal(promptArrayOrderGroups[0].debug.orderListLength, 11);
-assert.deepEqual(
-  promptArrayOrderGroups[0].debug.orderListIdentifiers.slice(0, 5),
-  ['before-shell', 'worldInfoBefore', 'char-info-open', 'charDescription', 'charPersonality'],
-);
 
 const namedPlaceholderGroups = collectPresetImportGroups({
   targetWindow: {

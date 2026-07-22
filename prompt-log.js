@@ -26,6 +26,53 @@ function mergeDiagnostics(baseDiagnostics, runtimeDiagnostics) {
   return { ...baseDiagnostics, ...runtimeDiagnostics };
 }
 
+function normalizeMessages(messages) {
+  return (Array.isArray(messages) ? messages : []).map((message) => ({
+    role: textOf(message?.role || 'user'),
+    content: textOf(message?.content),
+  }));
+}
+
+export function mergeConsecutiveSystemMessages(messages = []) {
+  const cleanMessages = normalizeMessages(messages);
+  const merged = [];
+  for (const message of cleanMessages) {
+    const previous = merged[merged.length - 1];
+    if (message.role === 'system' && previous?.role === 'system') {
+      previous.content = [previous.content, message.content].filter(Boolean).join('\n\n');
+    } else {
+      merged.push({ ...message });
+    }
+  }
+  return merged;
+}
+
+export function createPromptLogViewModel(logText = '') {
+  let parsed = null;
+  try {
+    parsed = JSON.parse(textOf(logText));
+  } catch (_) {
+    parsed = null;
+  }
+  const messages = normalizeMessages(parsed?.request?.messages).map((message, index) => ({
+    index,
+    role: message.role,
+    content: message.content,
+    characterCount: message.content.length,
+  }));
+  return {
+    summary: {
+      createdAt: textOf(parsed?.createdAt),
+      model: textOf(parsed?.request?.model),
+      messageCount: Number(parsed?.summary?.messageCount) || messages.length,
+      characterCount: Number(parsed?.summary?.characterCount) || messages.reduce((sum, message) => sum + message.characterCount, 0),
+      extensionVersion: textOf(parsed?.summary?.extensionVersion),
+      compressedSystemMessages: Boolean(parsed?.summary?.compressedSystemMessages),
+    },
+    messages,
+  };
+}
+
 export function createPromptLog({
   apiUrl = '',
   apiKey = '',
@@ -36,11 +83,9 @@ export function createPromptLog({
   createdAt = new Date().toISOString(),
   extensionVersion = '',
   runtimeDiagnostics = {},
+  compressSystemMessages = false,
 } = {}) {
-  const cleanMessages = (Array.isArray(messages) ? messages : []).map((message) => ({
-    role: textOf(message?.role || 'user'),
-    content: textOf(message?.content),
-  }));
+  const cleanMessages = compressSystemMessages ? mergeConsecutiveSystemMessages(messages) : normalizeMessages(messages);
   const characterCount = cleanMessages.reduce((sum, message) => sum + message.content.length, 0);
   return JSON.stringify({
     createdAt,
@@ -49,6 +94,7 @@ export function createPromptLog({
       characterCount,
       hasApiKey: Boolean(apiKey),
       extensionVersion: textOf(extensionVersion),
+      compressedSystemMessages: Boolean(compressSystemMessages),
     },
     diagnostics: mergeDiagnostics(createDiagnostics(cleanMessages), runtimeDiagnostics),
     request: {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createPromptLog } from '../prompt-log.js';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from '../prompt-log.js';
 
 const log = createPromptLog({
   apiUrl: 'https://example.com/v1/chat/completions',
@@ -57,3 +57,50 @@ assert.deepEqual(runtimeDiagnosticLog.diagnostics.characterFields, {
   personalityLength: 8,
   scenarioLength: 0,
 });
+
+const mergedMessages = mergeConsecutiveSystemMessages([
+  { role: 'system', content: 'A' },
+  { role: 'system', content: 'B' },
+  { role: 'assistant', content: 'Example answer' },
+  { role: 'system', content: 'C' },
+  { role: 'system', content: 'D' },
+  { role: 'user', content: 'Task' },
+  { role: 'system', content: 'E' },
+]);
+
+assert.deepEqual(mergedMessages, [
+  { role: 'system', content: 'A\n\nB' },
+  { role: 'assistant', content: 'Example answer' },
+  { role: 'system', content: 'C\n\nD' },
+  { role: 'user', content: 'Task' },
+  { role: 'system', content: 'E' },
+]);
+
+const mergedLog = JSON.parse(createPromptLog({
+  messages: [
+    { role: 'system', content: 'A' },
+    { role: 'system', content: 'B' },
+    { role: 'assistant', content: 'Example answer' },
+  ],
+  compressSystemMessages: true,
+}));
+
+assert.equal(mergedLog.summary.messageCount, 2);
+assert.equal(mergedLog.summary.compressedSystemMessages, true);
+assert.equal(mergedLog.request.messages[0].content, 'A\n\nB');
+
+const viewModel = createPromptLogViewModel(JSON.stringify({
+  summary: { messageCount: 2, characterCount: 21, extensionVersion: '0.3.58' },
+  request: {
+    model: 'test-model',
+    messages: [
+      { role: 'system', content: 'System prompt' },
+      { role: 'assistant', content: 'Assistant prompt' },
+    ],
+  },
+}));
+
+assert.equal(viewModel.summary.messageCount, 2);
+assert.deepEqual(viewModel.messages.map((message) => message.role), ['system', 'assistant']);
+assert.deepEqual(viewModel.messages.map((message) => message.content), ['System prompt', 'Assistant prompt']);
+assert.ok(viewModel.messages[0].characterCount > 0);

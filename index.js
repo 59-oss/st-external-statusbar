@@ -14,15 +14,15 @@ import {
   getCurrentPresetNameSafe,
   getPresetNamesSafe,
   normalizeComponent,
-} from './component-sources.js?ver=0.3.57';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.57';
-import { injectStatusbarText } from './inject-utils.js?ver=0.3.57';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.57';
-import { createPromptLog } from './prompt-log.js?ver=0.3.57';
-import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.57';
+} from './component-sources.js?ver=0.3.58';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.58';
+import { injectStatusbarText } from './inject-utils.js?ver=0.3.58';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.58';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.58';
+import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.58';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.57';
+const EXTENSION_VERSION = '0.3.58';
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -47,6 +47,7 @@ const DEFAULT_SETTINGS = {
   cleanupTags: '',
   lastGenerated: '',
   lastPromptLog: '',
+  compressSystemMessages: false,
   ballX: 16,
   ballY: 16,
   ballVisible: false,
@@ -133,10 +134,11 @@ async function callExternalApi(latestMessage, signal) {
   const apiUrl = normalizeChatCompletionsUrl(settings.apiUrl);
   const model = textOf(settings.apiModel);
   if (!apiUrl || !model) throw new Error('请先在“API 设置”里填写 API 地址和模型名称。');
-  const messages = await buildMessages(latestMessage);
-  settings.lastPromptLog = createPromptLog({ apiUrl, apiKey: settings.apiKey, model, maxTokens: settings.maxTokens, temperature: settings.temperature, messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics: lastRuntimeDiagnostics });
+  const builtMessages = await buildMessages(latestMessage);
+  const messages = settings.compressSystemMessages ? mergeConsecutiveSystemMessages(builtMessages) : builtMessages;
+  settings.lastPromptLog = createPromptLog({ apiUrl, apiKey: settings.apiKey, model, maxTokens: settings.maxTokens, temperature: settings.temperature, messages, extensionVersion: EXTENSION_VERSION, runtimeDiagnostics: lastRuntimeDiagnostics, compressSystemMessages: settings.compressSystemMessages });
   saveSettings();
-  $t('#st-esg-prompt-log').val(settings.lastPromptLog);
+  renderPromptLog();
   console.log(`[${EXTENSION_ID}] 外置状态栏 API 请求提示词`, JSON.parse(settings.lastPromptLog));
   const response = await fetch(apiUrl, {
     method: 'POST',
@@ -215,11 +217,47 @@ async function copyTextToClipboard(text) {
     await targetWindow.navigator?.clipboard?.writeText?.(value);
     return true;
   } catch (_) {
-    const field = targetDoc.getElementById('st-esg-prompt-log');
-    field?.focus?.();
-    field?.select?.();
+    const field = targetDoc.createElement('textarea');
+    field.value = value;
+    field.style.position = 'fixed';
+    field.style.opacity = '0';
+    targetDoc.body.appendChild(field);
+    field.focus();
+    field.select();
+    setTimeout(() => field.remove(), 0);
     return false;
   }
+}
+
+function renderPromptLog() {
+  const hiddenField = $t('#st-esg-prompt-log');
+  const summaryBox = $t('#st-esg-prompt-log-summary');
+  const viewBox = $t('#st-esg-prompt-log-view');
+  if (!summaryBox.length || !viewBox.length) return;
+  hiddenField.val(settings.lastPromptLog || '');
+  if (!settings.lastPromptLog) {
+    summaryBox.html('<span>暂无提示词日志</span>');
+    viewBox.html('<div class="st-esg-empty st-esg-empty-small">生成一次状态栏后，这里会按消息分栏显示最终发送给 API 的提示词。</div>');
+    return;
+  }
+  const viewModel = createPromptLogViewModel(settings.lastPromptLog);
+  summaryBox.html([
+    `<span>模型：${escapeHtml(viewModel.summary.model || '未知')}</span>`,
+    `<span>${viewModel.summary.messageCount} 条消息</span>`,
+    `<span>${viewModel.summary.characterCount} 字符</span>`,
+    viewModel.summary.compressedSystemMessages ? '<span>已压缩 system</span>' : '',
+  ].filter(Boolean).join(''));
+  viewBox.html(viewModel.messages.map((message) => {
+    const roleClass = ['system', 'assistant', 'user'].includes(message.role) ? message.role : 'other';
+    return `<details class="st-esg-prompt-message st-esg-prompt-role-${roleClass}"><summary><span>Role: ${escapeHtml(message.role)} | Chars: ${message.characterCount}</span><button class="menu_button st-esg-copy-message" type="button" data-message-index="${message.index}" title="复制本条"><i class="fa-solid fa-copy"></i></button></summary><pre>${escapeHtml(message.content)}</pre></details>`;
+  }).join('') || '<div class="st-esg-empty st-esg-empty-small">日志里没有 messages。</div>');
+  $t('.st-esg-copy-message').on('click', async function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const message = viewModel.messages[Number($(this).data('message-index'))];
+    const copied = await copyTextToClipboard(message?.content || '');
+    setStatus(copied ? '已复制本条提示词。' : '已选中本条提示词，可以手动复制。');
+  });
 }
 
 function renderModelOptions() {
@@ -534,25 +572,6 @@ async function scanImportCandidates() {
     ...collectPresetImportGroups({ targetWindow, context, presetName: settings.activeSourcePreset }),
     ...collectWorldbookImportGroups({ targetWindow, context, selectedWorldNames }),
   ];
-  settings.lastPromptLog = JSON.stringify({
-    type: 'source-scan-debug',
-    extensionVersion: EXTENSION_VERSION,
-    preset: settings.activeSourcePreset,
-    sourceMode: settings.sourceMode,
-    generatedAt: new Date().toISOString(),
-    groupCount: importGroups.length,
-    groups: importGroups.map((group) => ({
-      source: group.source,
-      scope: group.scope,
-      loaded: group.loaded,
-      debug: group.debug || null,
-      itemCount: Array.isArray(group.items) ? group.items.length : 0,
-      markerTypes: (Array.isArray(group.items) ? group.items : []).map((item) => item?.markerType).filter(Boolean),
-      itemNames: (Array.isArray(group.items) ? group.items : []).map((item) => item?.name).filter(Boolean),
-    })),
-  }, null, 2);
-  $t('#st-esg-prompt-log').val(settings.lastPromptLog);
-  saveSettings();
   const syncedCount = syncPromptSelectionsFromLoadedGroups(importGroups);
   activeWorldbookGroupIndex = null;
   importCandidates = importGroups.flatMap((group) => group.items || []);
@@ -710,7 +729,7 @@ function renderPluginPanel() {
         <section class="st-esg-tab-panel" data-tab-panel="api"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">独立 API</div><div class="st-esg-card-desc">支持 OpenAI-compatible /v1/chat/completions。留空时只生成占位内容。</div></div></div><div class="st-esg-grid"><label>API 地址<input id="st-esg-api-url" class="text_pole" type="text" placeholder="例如 https://api.openai.com/v1" /></label><label>模型名称<input id="st-esg-api-model" class="text_pole" type="text" list="st-esg-model-options" placeholder="例如 gpt-4o-mini / deepseek-chat" /><datalist id="st-esg-model-options"></datalist></label><label>最大输出<input id="st-esg-max-tokens" class="text_pole" type="number" min="1" step="1" /></label><label>温度<input id="st-esg-temperature" class="text_pole" type="number" min="0" max="2" step="0.1" /></label></div><label class="st-esg-secret-label">API Key<input id="st-esg-api-key" class="text_pole" type="password" placeholder="可选。多数独立 API 需要填写。" /></label><div class="st-esg-actions-row"><div id="st-esg-fetch-models" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-cloud-arrow-down"></i><span>拉取模型</span></div></div></div></section>
         <section class="st-esg-tab-panel" data-tab-panel="sources"><div class="st-esg-card st-esg-import-tools"><div class="st-esg-card-head"><div><div id="st-esg-source-mode-title" class="st-esg-card-title">提示词模式</div><div id="st-esg-source-mode-desc" class="st-esg-card-desc">当前勾选会作为外置生成时启用的来源，不会导入组件库。</div></div></div><div class="st-esg-grid"><label>来源模式<select id="st-esg-source-mode" class="text_pole"><option value="prompt">提示词模式</option><option value="import">导入组件库模式</option></select></label><label>导入到<select id="st-esg-import-target-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div><div class="st-esg-actions-row"><div id="st-esg-scan-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-list-check"></i><span>同步来源</span></div><div id="st-esg-import-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>已自动保存勾选</span></div></div></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">预设</div><div class="st-esg-card-desc">用选择框切换预设；下方只显示当前选择的预设条目。</div></div></div><div class="st-esg-grid"><label>选择预设<select id="st-esg-source-preset" class="text_pole"></select></label></div><div id="st-esg-preset-candidates" class="st-esg-import-list"><div class="st-esg-empty st-esg-empty-small">还没有预设条目。选择预设后点击“同步来源”。</div></div></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">世界书</div><div class="st-esg-card-desc">这里是独立的世界书列表；点进某本世界书后只替换这张卡片。</div></div></div><div id="st-esg-worldbook-candidates" class="st-esg-import-list"><div class="st-esg-empty st-esg-empty-small">还没有世界书来源。点击“同步来源”后会按分类列出。</div></div></div></section>
         <section class="st-esg-tab-panel" data-tab-panel="components"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">手动添加组件</div><div class="st-esg-card-desc">组件库只管理最终会发送的组件；从预设和世界书导入请去“预设/世界书”页。</div></div></div><div class="st-esg-grid"><label>组件名<input id="st-esg-component-name" class="text_pole" type="text" placeholder="例如：人物状态栏" /></label><label>归属<select id="st-esg-component-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div><textarea id="st-esg-component-content" class="text_pole textarea_compact st-esg-textarea" rows="5" placeholder="在这里粘贴状态栏格式、要求或组件提示词。"></textarea><div class="st-esg-actions-row"><div id="st-esg-add-component" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-plus"></i><span>添加到组件库</span></div></div></div><div id="st-esg-component-list" class="st-esg-component-list"></div></section>
-        <section class="st-esg-tab-panel" data-tab-panel="debug"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">提示词日志</div><div class="st-esg-card-desc">这里记录最近一次发给独立 API 的 messages。不会保存 API Key。</div></div></div><textarea id="st-esg-prompt-log" class="text_pole textarea_compact st-esg-textarea st-esg-log" rows="16" readonly placeholder="生成一次状态栏后，这里会显示本次 API 请求提示词。"></textarea><div class="st-esg-actions-row"><div id="st-esg-copy-prompt-log" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-copy"></i><span>复制日志</span></div><div id="st-esg-clear-prompt-log" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-eraser"></i><span>清空日志</span></div></div></div></section>
+        <section class="st-esg-tab-panel" data-tab-panel="debug"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">提示词日志</div><div class="st-esg-card-desc">按 API messages 分栏查看；复制日志仍会复制完整 JSON，不保存 API Key。</div></div></div><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-compress-system" type="checkbox" /><span>压缩连续系统消息</span><em>将连续 system 合并为一条，遇到 user/assistant 会断开。</em></label><div id="st-esg-prompt-log-summary" class="st-esg-prompt-log-summary"></div><div id="st-esg-prompt-log-view" class="st-esg-prompt-log-view"></div><textarea id="st-esg-prompt-log" class="st-esg-hidden-log" readonly></textarea><div class="st-esg-actions-row"><div id="st-esg-copy-prompt-log" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-copy"></i><span>复制完整日志</span></div><div id="st-esg-clear-prompt-log" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-eraser"></i><span>清空日志</span></div></div></div></section>
         <section class="st-esg-tab-panel" data-tab-panel="output"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">注入方式</div><div class="st-esg-card-desc">直接注入模型输出原文，不再添加插件自定义包裹标记。</div></div></div><select id="st-esg-inject-mode" class="text_pole st-esg-select"><option value="replace">清理旧版 ST 标记后追加</option><option value="append">始终追加到最新回复末尾</option></select></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">输出清理</div><div class="st-esg-card-desc">每行一个标签或包裹符，用于清理模型多余输出。</div></div></div><textarea id="st-esg-cleanup-tags" class="text_pole textarea_compact st-esg-textarea" rows="5" placeholder="例如：&#10;<status>&#10;</status>"></textarea></div><div class="st-esg-card st-esg-compact-card"><label class="st-esg-checkbox"><input id="st-esg-ball-visible" type="checkbox" /><span>显示可选悬浮快捷按钮</span></label></div></section>
       </div>
       <div class="st-esg-panel-footer"><div id="st-esg-status" class="st-esg-status-pill"><span class="st-esg-dot"></span><span>准备就绪</span></div><div class="st-esg-footer-actions"><div id="st-esg-generate" class="menu_button menu_button_icon st-esg-primary-action"><i class="fa-solid fa-sparkles"></i><span>生成状态栏</span></div><div id="st-esg-inject" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>注入最新回复</span></div></div></div>
@@ -727,7 +746,7 @@ function bindPanelEvents() {
   $t('#st-esg-mode').val(settings.mode);
   $t('#st-esg-task').val(settings.taskPrompt);
   $t('#st-esg-preview').val(settings.lastGenerated);
-  $t('#st-esg-prompt-log').val(settings.lastPromptLog || '');
+  $t('#st-esg-compress-system').prop('checked', settings.compressSystemMessages);
   $t('#st-esg-api-url').val(settings.apiUrl);
   $t('#st-esg-api-key').val(settings.apiKey);
   $t('#st-esg-api-model').val(settings.apiModel);
@@ -738,7 +757,7 @@ function bindPanelEvents() {
   $t('#st-esg-cleanup-tags').val(settings.cleanupTags);
   renderSourceModeUi();
   renderSourcePresetSelect();
-  renderComponentList(); switchTab(settings.activeTab || 'workspace');
+  renderComponentList(); renderPromptLog(); switchTab(settings.activeTab || 'workspace');
   $t('#st-esg-close').on('click', () => togglePanel(false));
   $t('.st-esg-tab').on('click', function () { switchTab(String($(this).data('tab'))); });
   $t('#st-esg-add-component').on('click', addComponent);
@@ -757,12 +776,13 @@ function bindPanelEvents() {
   });
   $t('#st-esg-clear-prompt-log').on('click', () => {
     settings.lastPromptLog = '';
-    $t('#st-esg-prompt-log').val('');
+    renderPromptLog();
     saveSettings();
     setStatus('已清空提示词日志。');
   });
   $t('#st-esg-fetch-models').on('click', fetchApiModels);
   $t('#st-esg-enabled').on('change', function () { settings.enabled = Boolean($(this).prop('checked')); saveSettings(); });
+  $t('#st-esg-compress-system').on('change', function () { settings.compressSystemMessages = Boolean($(this).prop('checked')); saveSettings(); });
   $t('#st-esg-ball-visible').on('change', function () { settings.ballVisible = Boolean($(this).prop('checked')); saveSettings(); renderFloatingBall(); });
   $t('#st-esg-mode').on('change', function () { settings.mode = String($(this).val()); saveSettings(); });
   $t('#st-esg-task').on('input', function () { settings.taskPrompt = String($(this).val()); saveSettings(); });
