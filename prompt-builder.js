@@ -424,23 +424,18 @@ function mergeMissingPresetMarkers(promptSourceItems, preset, options) {
 }
 
 function buildComponentText(components, substituteParams) {
-  return components?.length
-    ? components.map((item) => applySubstituteParams(item.content || '', substituteParams)).filter(textOf).join('\n\n')
-    : '当前没有启用的组件。请根据生成任务指令输出状态栏。';
+  return (Array.isArray(components) ? components : [])
+    .map((item) => applySubstituteParams(item.content || '', substituteParams))
+    .filter(textOf)
+    .join('\n\n');
 }
 
+const EXTERNAL_COMPONENTS_PLACEHOLDER = '{{external_components}}';
+
 function buildPluginTaskMessage({ taskPrompt, components, substituteParams }) {
-  return [
-    '请不要续写正文。',
-    '请基于上方预设、角色、世界观与已有正文，生成需要追加在正文末尾的文末组件。',
-    '',
-    `生成任务：${applySubstituteParams(taskPrompt, substituteParams)}`,
-    '',
-    '启用组件：',
-    buildComponentText(components, substituteParams),
-    '',
-    '现在只输出文末组件内容，不解释，不输出分析过程。',
-  ].join('\n');
+  const task = applySubstituteParams(taskPrompt, substituteParams);
+  if (!task.includes(EXTERNAL_COMPONENTS_PLACEHOLDER)) return task;
+  return task.split(EXTERNAL_COMPONENTS_PLACEHOLDER).join(buildComponentText(components, substituteParams));
 }
 
 export async function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, promptSourceItems, substituteParams }) {
@@ -451,12 +446,7 @@ export async function buildExternalStatusbarMessages({ targetWindow, context, la
     : buildPresetPromptSourceItems(preset, { context, latestMessage, substituteParams });
   const promptMessages = buildPromptSourceMessages(activePromptSourceItems, { context, substituteParams });
   const hasChatHistoryMarker = activePromptSourceItems.some((item) => textOf(item?.markerType) === 'chatHistory');
-  const fallback = promptMessages.length || activePromptSourceItems.length ? [] : [{
-    role: 'system',
-    content: '你是 SillyTavern 的外置文末状态栏生成器。你只生成文末状态栏/文末组件，不续写正文。',
-  }];
   const messages = [
-    ...fallback,
     ...promptMessages,
     ...(!hasSelectedPromptSources && !hasChatHistoryMarker ? getRecentChatMessages(context?.chat) : []),
     { role: 'user', content: buildPluginTaskMessage({ taskPrompt, components, substituteParams }) },

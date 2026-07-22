@@ -55,9 +55,23 @@ assert.equal(messages[2].content, 'Hello');
 assert.equal(messages[3].role, 'assistant');
 assert.equal(messages[3].content, 'Reply');
 assert.ok(messages[4].content.includes('Generate footer widgets only.'));
-assert.ok(messages[4].content.includes('<roleplay_options />'));
+assert.ok(!messages[4].content.includes('<roleplay_options />'));
 assert.ok(!messages[4].content.includes('Choices'));
 assert.ok(!messages[4].content.includes('Latest assistant prose'));
+
+const messagesWithComponentPlaceholder = await buildExternalStatusbarMessages({
+  targetWindow: {},
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Before\n{{external_components}}\nAfter',
+  components: [
+    { scope: 'global', name: 'Choices', content: '<roleplay_options />' },
+    { scope: 'global', name: 'Guide', content: '<evil_guidance />' },
+  ],
+  promptSourceItems: [],
+});
+
+assert.equal(messagesWithComponentPlaceholder.at(-1).content, 'Before\n<roleplay_options />\n\n<evil_guidance />\nAfter');
 
 const messagesWithoutPresetName = await buildExternalStatusbarMessages({
   targetWindow: {
@@ -75,7 +89,7 @@ const messagesWithoutPresetName = await buildExternalStatusbarMessages({
   components: [],
 });
 
-assert.equal(messagesWithoutPresetName[0].role, 'system');
+assert.deepEqual(messagesWithoutPresetName.map((message) => message.role), ['user', 'assistant', 'user']);
 assert.equal(messagesWithoutPresetName.at(-1).role, 'user');
 
 const messagesFromPresetMarkers = await buildExternalStatusbarMessages({
@@ -398,7 +412,7 @@ const messagesWithMacroSubstitution = await buildExternalStatusbarMessages({
   targetWindow: {},
   context,
   latestMessage: { mes: 'Latest {{char}} prose' },
-  taskPrompt: 'Task for {{user}}',
+  taskPrompt: 'Task for {{user}}\n{{external_components}}',
   components: [{ scope: 'global', name: 'Macro component', content: 'Component for {{char}}' }],
   promptSourceItems: [
     { scope: 'preset', name: 'Macro preset', role: 'system', content: 'Preset for {{char}} and {{user}}' },
