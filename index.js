@@ -14,15 +14,15 @@ import {
   getCurrentPresetNameSafe,
   getPresetNamesSafe,
   normalizeComponent,
-} from './component-sources.js?ver=0.3.54';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.54';
-import { injectStatusbarText } from './inject-utils.js?ver=0.3.54';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.54';
-import { createPromptLog } from './prompt-log.js?ver=0.3.54';
-import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.54';
+} from './component-sources.js?ver=0.3.55';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.55';
+import { injectStatusbarText } from './inject-utils.js?ver=0.3.55';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.55';
+import { createPromptLog } from './prompt-log.js?ver=0.3.55';
+import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.55';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.54';
+const EXTENSION_VERSION = '0.3.55';
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -534,24 +534,25 @@ async function scanImportCandidates() {
     ...collectPresetImportGroups({ targetWindow, context, presetName: settings.activeSourcePreset }),
     ...collectWorldbookImportGroups({ targetWindow, context, selectedWorldNames }),
   ];
-  const scanDebugGroups = importGroups.filter((group) => group?.debug);
-  if (scanDebugGroups.length) {
-    settings.lastPromptLog = JSON.stringify({
-      type: 'source-scan-debug',
-      extensionVersion: EXTENSION_VERSION,
-      preset: settings.activeSourcePreset,
-      generatedAt: new Date().toISOString(),
-      groups: scanDebugGroups.map((group) => ({
-        source: group.source,
-        debug: group.debug,
-        itemCount: Array.isArray(group.items) ? group.items.length : 0,
-        markerTypes: (Array.isArray(group.items) ? group.items : []).map((item) => item?.markerType).filter(Boolean),
-        itemNames: (Array.isArray(group.items) ? group.items : []).map((item) => item?.name).filter(Boolean),
-      })),
-    }, null, 2);
-    $t('#st-esg-prompt-log').val(settings.lastPromptLog);
-    saveSettings();
-  }
+  settings.lastPromptLog = JSON.stringify({
+    type: 'source-scan-debug',
+    extensionVersion: EXTENSION_VERSION,
+    preset: settings.activeSourcePreset,
+    sourceMode: settings.sourceMode,
+    generatedAt: new Date().toISOString(),
+    groupCount: importGroups.length,
+    groups: importGroups.map((group) => ({
+      source: group.source,
+      scope: group.scope,
+      loaded: group.loaded,
+      debug: group.debug || null,
+      itemCount: Array.isArray(group.items) ? group.items.length : 0,
+      markerTypes: (Array.isArray(group.items) ? group.items : []).map((item) => item?.markerType).filter(Boolean),
+      itemNames: (Array.isArray(group.items) ? group.items : []).map((item) => item?.name).filter(Boolean),
+    })),
+  }, null, 2);
+  $t('#st-esg-prompt-log').val(settings.lastPromptLog);
+  saveSettings();
   const syncedCount = syncPromptSelectionsFromLoadedGroups(importGroups);
   activeWorldbookGroupIndex = null;
   importCandidates = importGroups.flatMap((group) => group.items || []);
