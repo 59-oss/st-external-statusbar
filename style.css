@@ -295,6 +295,11 @@
 .st-esg-component-item-head .st-esg-checkbox span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-esg-component-item-head em { max-width: 120px; overflow: hidden; color: #666; font-style: normal; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .st-esg-import-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 42px; padding: 10px 12px; overflow: hidden; }
+details.st-esg-import-item { display: block; padding: 0; overflow: visible; }
+details.st-esg-import-item > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 42px; padding: 10px 12px; cursor: pointer; list-style-position: inside; }
+details.st-esg-import-item[open] > summary { border-bottom: 1px solid #d6d6d6; }
+.st-esg-source-detail { display: grid; gap: 8px; padding: 10px 12px 12px; background: #fafafa; }
+.st-esg-source-detail .st-esg-source-content { min-height: 150px; resize: vertical; }
 .st-esg-import-item .st-esg-checkbox { min-width: 0; flex: 1; }
 .st-esg-import-item .st-esg-checkbox span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-esg-import-meta { color: #666; font-size: 12px; }
