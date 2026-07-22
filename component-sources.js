@@ -387,6 +387,8 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
     const prompts = Array.isArray(inUsePreset.prompts) ? inUsePreset.prompts : [];
     const promptMap = new Map(prompts.map((prompt) => [textOf(prompt?.identifier || prompt?.id || prompt?.name), prompt]).filter(([id]) => Boolean(id)));
     const orderList = getActivePresetPromptOrder(inUsePreset);
+    console.log('[扫描调试] inUse orderList identifiers:', orderList.map((orderItem) => orderItem?.identifier));
+    console.log('[扫描调试] inUse promptMap keys:', [...promptMap.keys()]);
     const used = new Set();
     const addPrompt = (rawPrompt, sourceOrder, enabled = rawPrompt?.enabled !== false) => {
       const identifier = textOf(rawPrompt?.identifier || rawPrompt?.id || rawPrompt?.name);
