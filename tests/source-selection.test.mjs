@@ -53,6 +53,21 @@ const selectedPromptItems = collectSelectedPromptSourceItems([
 assert.deepEqual(selectedPromptItems.map((item) => item.name), ['System', 'Lore']);
 assert.equal(selectedPromptItems[0].role, 'system');
 
+const selectedPromptItemsWithOverrides = collectSelectedPromptSourceItems([
+  {
+    loaded: true,
+    items: [
+      { key: 'editable_preset', scope: '预设', name: 'Editable Preset', role: 'system', content: 'Original preset', enabled: true },
+      { key: 'editable_world', scope: '世界书', name: 'Editable World', role: 'system', content: 'Original world', enabled: true },
+    ],
+  },
+], {}, {
+  editable_preset: 'Edited preset',
+  editable_world: 'Edited world',
+});
+
+assert.deepEqual(selectedPromptItemsWithOverrides.map((item) => item.content), ['Edited preset', 'Edited world']);
+
 const selectedEmptyMarkerItems = collectSelectedPromptSourceItems([
   {
     loaded: true,

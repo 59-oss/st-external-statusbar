@@ -14,15 +14,15 @@ import {
   getCurrentPresetNameSafe,
   getPresetNamesSafe,
   normalizeComponent,
-} from './component-sources.js?ver=0.3.62';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.62';
-import { injectStatusbarText } from './inject-utils.js?ver=0.3.62';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.62';
-import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.62';
-import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.62';
+} from './component-sources.js?ver=0.3.63';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.63';
+import { injectStatusbarText } from './inject-utils.js?ver=0.3.63';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.63';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.63';
+import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.63';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.62';
+const EXTENSION_VERSION = '0.3.63';
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -64,6 +64,7 @@ const DEFAULT_SETTINGS = {
   sourceMode: SOURCE_MODE_PROMPT,
   promptSelections: {},
   importSelections: {},
+  sourceContentOverrides: {},
   components: [],
 };
 
@@ -96,6 +97,7 @@ function loadSettings() {
   if (!Array.isArray(settings.apiModelOptions)) settings.apiModelOptions = [];
   if (!settings.promptSelections || typeof settings.promptSelections !== 'object') settings.promptSelections = {};
   if (!settings.importSelections || typeof settings.importSelections !== 'object') settings.importSelections = {};
+  if (!settings.sourceContentOverrides || typeof settings.sourceContentOverrides !== 'object') settings.sourceContentOverrides = {};
   if (![SOURCE_MODE_PROMPT, SOURCE_MODE_IMPORT].includes(settings.sourceMode)) settings.sourceMode = SOURCE_MODE_PROMPT;
   settings.taskPlacementEnabled = Boolean(settings.taskPlacementEnabled);
   settings.taskPlacementAfterSourceId = textOf(settings.taskPlacementAfterSourceId);
@@ -509,7 +511,7 @@ async function ensurePromptSourceItemsForGeneration() {
   }
   importCandidates = importGroups.flatMap((group) => group.items || []);
   renderImportCandidates({ renderPreset: false });
-  return collectSelectedPromptSourceItems(importGroups, settings.promptSelections);
+  return collectSelectedPromptSourceItems(importGroups, settings.promptSelections, settings.sourceContentOverrides);
 }
 
 function getSourceModeInfo() {
@@ -534,6 +536,33 @@ function getPresetTaskPlacementItems() {
     .flatMap((group) => group.items
       .filter((item) => item?.key && (textOf(item.content) || textOf(item.markerType)))
       .map((item) => ({ id: item.key, label: `${group.source || group.group} / ${item.name}` })));
+}
+
+function getSourceContentValue(item) {
+  if (item?.key && Object.prototype.hasOwnProperty.call(settings.sourceContentOverrides, item.key)) {
+    return String(settings.sourceContentOverrides[item.key] ?? '');
+  }
+  return String(item?.content ?? '');
+}
+
+function setSourceContentOverride(item, value) {
+  if (!item?.key || item?.locked) return;
+  const original = String(item.content ?? '');
+  const next = String(value ?? '');
+  if (next === original) {
+    delete settings.sourceContentOverrides[item.key];
+  } else {
+    settings.sourceContentOverrides[item.key] = next;
+  }
+  saveSettings();
+}
+
+function renderSourceContentEditor(item, groupIndex, itemIndex) {
+  const value = getSourceContentValue(item);
+  if (item?.markerType && !value) {
+    return '<div class="st-esg-empty st-esg-empty-small">原生占位符内容会在生成时从酒馆运行时插入。</div>';
+  }
+  return `<textarea class="text_pole textarea_compact st-esg-textarea st-esg-source-content" rows="7" data-group-index="${groupIndex}" data-item-index="${itemIndex}" ${item?.locked ? 'readonly' : ''}>${escapeHtml(value)}</textarea>`;
 }
 
 function renderTaskPlacementOptions() {
@@ -676,8 +705,11 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     if (!group.items.length) return '<div class="st-esg-empty st-esg-empty-small">没有可导入条目</div>';
     return group.items.map((item, itemIndex) => {
       const checked = getSourceSelection(item);
-      if (item.locked) return `<div class="st-esg-import-item st-esg-import-item-locked" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><label class="st-esg-checkbox"><i class="fa-solid fa-lock"></i><span>${escapeHtml(item.name)}</span></label><em>原生占位符</em></div>`;
-      return `<div class="st-esg-import-item" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" ${checked ? 'checked' : ''} /><span>${escapeHtml(item.name)}</span></label><em>${checked ? modeInfo.checkedText : modeInfo.uncheckedText}</em></div>`;
+      const meta = [item.role ? `role: ${item.role}` : '', item.scope || '', item.sourceUid ? `id: ${item.sourceUid}` : ''].filter(Boolean).join(' | ');
+      const summary = item.locked
+        ? `<label class="st-esg-checkbox"><i class="fa-solid fa-lock"></i><span>${escapeHtml(item.name)}</span></label><em>原生占位符</em>`
+        : `<label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" ${checked ? 'checked' : ''} /><span>${escapeHtml(item.name)}</span></label><em>${checked ? modeInfo.checkedText : modeInfo.uncheckedText}</em>`;
+      return `<details class="st-esg-import-item ${item.locked ? 'st-esg-import-item-locked' : ''}" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><summary>${summary}</summary><div class="st-esg-source-detail"><div class="st-esg-card-desc">${escapeHtml(meta)}</div>${renderSourceContentEditor(item, group.groupIndex, itemIndex)}</div></details>`;
     }).join('');
   };
   const renderGroup = (group) => {
@@ -709,6 +741,13 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     const item = group?.items?.[Number(row.data('item-index'))];
     setSourceSelection(item, Boolean($(this).prop('checked')));
     $(this).closest('.st-esg-import-item').find('em').text($(this).prop('checked') ? getSourceModeInfo().checkedText : getSourceModeInfo().uncheckedText);
+  });
+  $t('.st-esg-source-content').off('.stEsgSourceContent');
+  $t('.st-esg-source-content').on('click.stEsgSourceContent', (event) => event.stopPropagation());
+  $t('.st-esg-source-content').on('input.stEsgSourceContent', function () {
+    const group = importGroups[Number($(this).data('group-index'))];
+    const item = group?.items?.[Number($(this).data('item-index'))];
+    setSourceContentOverride(item, $(this).val());
   });
   if (renderPreset) $t('.st-esg-import-group-toggle').on('click', function (event) {
     event.preventDefault();
