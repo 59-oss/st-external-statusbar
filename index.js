@@ -14,17 +14,17 @@ import {
   getCurrentPresetNameSafe,
   getPresetNamesSafe,
   normalizeComponent,
-} from './component-sources.js?ver=0.3.70';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.70';
-import { injectStatusbarText } from './inject-utils.js?ver=0.3.70';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.70';
-import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.70';
-import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.70';
-import { captureSchemeSnapshot, deleteScheme, findScheme, normalizeSchemeList, saveScheme } from './scheme-utils.js?ver=0.3.70';
-import { readOpenAiStream } from './stream-utils.js?ver=0.3.70';
+} from './component-sources.js?ver=0.3.71';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.71';
+import { injectStatusbarText } from './inject-utils.js?ver=0.3.71';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.71';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.71';
+import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.71';
+import { captureSchemeSnapshot, deleteScheme, findScheme, normalizeSchemeList, saveScheme } from './scheme-utils.js?ver=0.3.71';
+import { readOpenAiStream } from './stream-utils.js?ver=0.3.71';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.70';
+const EXTENSION_VERSION = '0.3.71';
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -349,7 +349,7 @@ function isWorldbookGroup(group) {
 
 function renderSchemeManager(type) {
   const label = SCHEME_CONFIG[type]?.label || '方案';
-  return `<div class="st-esg-scheme-box" data-scheme-type="${type}"><div class="st-esg-grid"><label>${label}方案<select id="st-esg-${type}-scheme" class="text_pole st-esg-scheme-select" data-scheme-type="${type}"></select></label><label>方案名<input id="st-esg-${type}-scheme-name" class="text_pole st-esg-scheme-name" data-scheme-type="${type}" type="text" placeholder="输入新方案名" /></label></div><div class="st-esg-actions-row"><button class="menu_button st-esg-save-scheme-new st-esg-secondary-action" type="button" data-scheme-type="${type}"><i class="fa-solid fa-plus"></i><span>保存为新方案</span></button><button class="menu_button st-esg-load-scheme st-esg-secondary-action" type="button" data-scheme-type="${type}"><i class="fa-solid fa-download"></i><span>载入方案</span></button><button class="menu_button st-esg-overwrite-scheme st-esg-secondary-action" type="button" data-scheme-type="${type}"><i class="fa-solid fa-floppy-disk"></i><span>覆盖方案</span></button><button class="menu_button st-esg-delete-scheme st-esg-secondary-action" type="button" data-scheme-type="${type}"><i class="fa-solid fa-trash"></i><span>删除方案</span></button></div></div>`;
+  return `<div class="st-esg-scheme-box" data-scheme-type="${type}"><div class="st-esg-grid"><label>${label}方案<select id="st-esg-${type}-scheme" class="text_pole st-esg-scheme-select" data-scheme-type="${type}"></select></label><label>方案名<input id="st-esg-${type}-scheme-name" class="text_pole st-esg-scheme-name" data-scheme-type="${type}" type="text" placeholder="输入新方案名" /></label></div><div class="st-esg-actions-row"><button class="menu_button st-esg-save-scheme-new st-esg-secondary-action" type="button" data-scheme-type="${type}"><i class="fa-solid fa-plus"></i><span>另存</span></button><button class="menu_button st-esg-load-scheme st-esg-secondary-action" type="button" data-scheme-type="${type}"><i class="fa-solid fa-download"></i><span>载入</span></button><button class="menu_button st-esg-overwrite-scheme st-esg-secondary-action" type="button" data-scheme-type="${type}"><i class="fa-solid fa-floppy-disk"></i><span>覆盖</span></button><button class="menu_button st-esg-delete-scheme st-esg-secondary-action" type="button" data-scheme-type="${type}"><i class="fa-solid fa-trash"></i><span>删除</span></button></div></div>`;
 }
 
 function getSchemeList(type) {
