@@ -47,6 +47,8 @@ export function captureSchemeSnapshot(type, settings, groups = [], options = {})
       activeSourcePreset: settings.activeSourcePreset || '',
       taskPlacementEnabled: Boolean(settings.taskPlacementEnabled),
       taskPlacementAfterSourceId: settings.taskPlacementAfterSourceId || '',
+      replaceLastUserMessageWithTask: Boolean(settings.replaceLastUserMessageWithTask),
+      omitOriginalUserMessages: Boolean(settings.omitOriginalUserMessages),
       promptSelections: pickByKeys(settings.promptSelections, keys),
       sourceContentOverrides: pickByKeys(settings.sourceContentOverrides, keys),
     };

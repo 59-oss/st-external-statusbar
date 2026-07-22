@@ -19,6 +19,8 @@ const settings = {
   activeSourcePreset: 'Ako Preset',
   taskPlacementEnabled: true,
   taskPlacementAfterSourceId: 'preset-b',
+  replaceLastUserMessageWithTask: true,
+  omitOriginalUserMessages: true,
   promptSelections: {
     preset_a: true,
     world_a: false,
@@ -52,6 +54,8 @@ assert.deepEqual(presetSnapshot, {
   activeSourcePreset: 'Ako Preset',
   taskPlacementEnabled: true,
   taskPlacementAfterSourceId: 'preset-b',
+  replaceLastUserMessageWithTask: true,
+  omitOriginalUserMessages: true,
   promptSelections: { preset_a: true },
   sourceContentOverrides: { preset_a: 'Edited preset' },
 });

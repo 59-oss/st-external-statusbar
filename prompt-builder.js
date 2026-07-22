@@ -1,12 +1,17 @@
 const textOf = (value) => String(value ?? '').trim();
 
-function getRecentChatText(chat, limit = 12) {
-  return (Array.isArray(chat) ? chat : []).slice(-limit).map((item) => `${item?.is_user ? '用户' : '助手'}：${item?.mes || ''}`).join('\n\n');
-}
-
-function getRecentChatMessages(chat, limit = 12) {
+function getRecentChatText(chat, limit = 12, { includeUserMessages = true } = {}) {
   return (Array.isArray(chat) ? chat : [])
     .slice(-limit)
+    .filter((item) => includeUserMessages || !item?.is_user)
+    .map((item) => `${item?.is_user ? '用户' : '助手'}：${item?.mes || ''}`)
+    .join('\n\n');
+}
+
+function getRecentChatMessages(chat, limit = 12, { includeUserMessages = true } = {}) {
+  return (Array.isArray(chat) ? chat : [])
+    .slice(-limit)
+    .filter((item) => includeUserMessages || !item?.is_user)
     .map((item) => ({
       role: item?.is_user ? 'user' : 'assistant',
       content: textOf(item?.mes),
@@ -181,15 +186,26 @@ function getOrderedEnabledPrompts(preset) {
   return ordered;
 }
 
-function replaceMacros(content, { context, latestMessage }) {
-  const chatHistory = getRecentChatText(context?.chat);
+function getLastUserMessage(context) {
+  for (let index = (Array.isArray(context?.chat) ? context.chat : []).length - 1; index >= 0; index -= 1) {
+    const item = context.chat[index];
+    if (item?.is_user && textOf(item?.mes)) return item.mes;
+  }
+  return '';
+}
+
+function replaceMacros(content, { context, latestMessage, lastUserMessageOverride = '', includeUserMessages = true }) {
+  const chatHistory = getRecentChatText(context?.chat, 12, { includeUserMessages });
   const charName = getCharacterName(context);
   const userName = getUserName(context);
+  const lastUserMessage = textOf(lastUserMessageOverride) || getLastUserMessage(context);
   const replacements = {
     '{{char}}': charName,
     '{{user}}': userName,
     '{{lastMessage}}': latestMessage?.mes || '',
     '{{lastAssistantMessage}}': latestMessage?.mes || '',
+    '{{lastUserMessage}}': lastUserMessage,
+    '{{LastUserMessage}}': lastUserMessage,
     '{{recentChat}}': chatHistory,
     '{{chatHistory}}': chatHistory,
     '{{description}}': context?.characters?.[context?.characterId ?? context?.this_chid]?.description || context?.characters?.[context?.characterId ?? context?.this_chid]?.data?.description || '',
@@ -327,7 +343,7 @@ function isWorldInfoMarker(markerType) {
   return ['worldInfoBefore', 'worldInfoAfter'].includes(textOf(markerType));
 }
 
-function buildPromptSourceMessages(promptSourceItems, { context, substituteParams }) {
+function buildPromptSourceMessages(promptSourceItems, { context, latestMessage, substituteParams, lastUserMessageOverride = '', includeUserMessages = true }) {
   const items = Array.isArray(promptSourceItems) ? promptSourceItems : [];
   const worldbookItems = items.filter(isWorldbookSourceItem);
   const hasWorldInfoMarker = items.some((item) => isWorldInfoMarker(item?.markerType));
@@ -358,19 +374,20 @@ function buildPromptSourceMessages(promptSourceItems, { context, substituteParam
     }
 
     if (markerType === 'chatHistory') {
-      messages.push(...getRecentChatMessages(context?.chat).map((message) => ({ ...message, sourceItemId })));
+      messages.push(...getRecentChatMessages(context?.chat, 12, { includeUserMessages }).map((message) => ({ ...message, sourceItemId })));
       continue;
     }
 
     const runtimeMarkerContent = getRuntimeMarkerContent(markerType, context);
-    const content = textOf(applySubstituteParams(runtimeMarkerContent || item?.content, substituteParams));
+    const rawContent = runtimeMarkerContent || replaceMacros(item?.content, { context, latestMessage, lastUserMessageOverride, includeUserMessages });
+    const content = textOf(applySubstituteParams(rawContent, substituteParams));
     if (content) messages.push({ role: normalizeRole(item?.role), content, sourceItemId });
   }
 
   return messages;
 }
 
-function buildPresetPromptSourceItems(preset, { context, latestMessage, substituteParams }) {
+function buildPresetPromptSourceItems(preset, { context, latestMessage, substituteParams, lastUserMessageOverride = '', includeUserMessages = true }) {
   return getOrderedEnabledPrompts(preset).map((prompt) => {
     const identifier = getPromptIdentifier(prompt);
     const markerType = getNativePresetMarkerType(prompt);
@@ -382,7 +399,7 @@ function buildPresetPromptSourceItems(preset, { context, latestMessage, substitu
       role: prompt?.role,
       markerType,
       locked: Boolean(markerType),
-      content: markerType ? '' : applySubstituteParams(replaceMacros(prompt?.content, { context, latestMessage }), substituteParams),
+      content: markerType ? '' : applySubstituteParams(replaceMacros(prompt?.content, { context, latestMessage, lastUserMessageOverride, includeUserMessages }), substituteParams),
     };
   });
 }
@@ -458,20 +475,23 @@ function stripInternalMessageFields(messages) {
   return messages;
 }
 
-export async function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, promptSourceItems, substituteParams, taskPlacement }) {
+export async function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, promptSourceItems, substituteParams, taskPlacement, replaceLastUserMessageWithTask = false, omitOriginalUserMessages = false }) {
   const hasSelectedPromptSources = Array.isArray(promptSourceItems) && promptSourceItems.length > 0;
   const preset = getCurrentPreset(targetWindow, context);
+  const taskContent = buildPluginTaskMessage({ taskPrompt, components, substituteParams });
+  const includeUserMessages = !omitOriginalUserMessages;
+  const lastUserMessageOverride = replaceLastUserMessageWithTask ? taskContent : '';
   const activePromptSourceItems = hasSelectedPromptSources
-    ? mergeMissingPresetMarkers(promptSourceItems, preset, { context, latestMessage, substituteParams })
-    : buildPresetPromptSourceItems(preset, { context, latestMessage, substituteParams });
-  const promptMessages = buildPromptSourceMessages(activePromptSourceItems, { context, substituteParams });
+    ? mergeMissingPresetMarkers(promptSourceItems, preset, { context, latestMessage, substituteParams, lastUserMessageOverride, includeUserMessages })
+    : buildPresetPromptSourceItems(preset, { context, latestMessage, substituteParams, lastUserMessageOverride, includeUserMessages });
+  const promptMessages = buildPromptSourceMessages(activePromptSourceItems, { context, latestMessage, substituteParams, lastUserMessageOverride, includeUserMessages });
   const hasChatHistoryMarker = activePromptSourceItems.some((item) => textOf(item?.markerType) === 'chatHistory');
   const messages = [
     ...promptMessages,
-    ...(!hasSelectedPromptSources && !hasChatHistoryMarker ? getRecentChatMessages(context?.chat) : []),
+    ...(!hasSelectedPromptSources && !hasChatHistoryMarker ? getRecentChatMessages(context?.chat, 12, { includeUserMessages }) : []),
   ];
   messages.promptSourceItems = activePromptSourceItems;
   messages.runtimeInsertions = await applyRuntimeTemplateInsertions(messages, { targetWindow, context, substituteParams });
-  insertTaskMessage(messages, { role: 'user', content: buildPluginTaskMessage({ taskPrompt, components, substituteParams }) }, taskPlacement);
+  insertTaskMessage(messages, { role: 'user', content: taskContent }, taskPlacement);
   return stripInternalMessageFields(messages);
 }

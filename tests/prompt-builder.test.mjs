@@ -59,6 +59,41 @@ assert.ok(!messages[4].content.includes('<roleplay_options />'));
 assert.ok(!messages[4].content.includes('Choices'));
 assert.ok(!messages[4].content.includes('Latest assistant prose'));
 
+const messagesWithTaskAsLastUserMessage = await buildExternalStatusbarMessages({
+  targetWindow: {
+    TavernHelper: {
+      getCurrentPresetName: () => 'Last User Preset',
+      getPreset: () => ({
+        prompts: [
+          { identifier: 'last-user-capture', role: 'system', content: 'Captured: {{LastUserMessage}}' },
+        ],
+      }),
+    },
+  },
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Task says\n{{external_components}}',
+  components: [{ content: '<status_component />' }],
+  replaceLastUserMessageWithTask: true,
+  omitOriginalUserMessages: true,
+});
+
+assert.equal(messagesWithTaskAsLastUserMessage[0].content, 'Captured: Task says\n<status_component />');
+assert.deepEqual(messagesWithTaskAsLastUserMessage.map((message) => message.role), ['system', 'assistant', 'user']);
+assert.ok(!messagesWithTaskAsLastUserMessage.some((message) => message.content === 'Hello'));
+
+const messagesWithoutOriginalUserMessages = await buildExternalStatusbarMessages({
+  targetWindow: {},
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Task only',
+  components: [],
+  omitOriginalUserMessages: true,
+});
+
+assert.deepEqual(messagesWithoutOriginalUserMessages.map((message) => message.role), ['assistant', 'user']);
+assert.ok(!messagesWithoutOriginalUserMessages.some((message) => message.content === 'Hello'));
+
 const messagesWithComponentPlaceholder = await buildExternalStatusbarMessages({
   targetWindow: {},
   context,

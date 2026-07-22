@@ -14,17 +14,17 @@ import {
   getCurrentPresetNameSafe,
   getPresetNamesSafe,
   normalizeComponent,
-} from './component-sources.js?ver=0.3.71';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.71';
-import { injectStatusbarText } from './inject-utils.js?ver=0.3.71';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.71';
-import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.71';
-import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.71';
-import { captureSchemeSnapshot, deleteScheme, findScheme, normalizeSchemeList, saveScheme } from './scheme-utils.js?ver=0.3.71';
-import { readOpenAiStream } from './stream-utils.js?ver=0.3.71';
+} from './component-sources.js?ver=0.3.72';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.72';
+import { injectStatusbarText } from './inject-utils.js?ver=0.3.72';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.72';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.72';
+import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.72';
+import { captureSchemeSnapshot, deleteScheme, findScheme, normalizeSchemeList, saveScheme } from './scheme-utils.js?ver=0.3.72';
+import { readOpenAiStream } from './stream-utils.js?ver=0.3.72';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.71';
+const EXTENSION_VERSION = '0.3.72';
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -60,6 +60,8 @@ const DEFAULT_SETTINGS = {
   compressSystemMessages: false,
   taskPlacementEnabled: false,
   taskPlacementAfterSourceId: '',
+  replaceLastUserMessageWithTask: false,
+  omitOriginalUserMessages: false,
   ballX: 16,
   ballY: 16,
   ballVisible: false,
@@ -117,6 +119,8 @@ function loadSettings() {
   settings.streamingEnabled = Boolean(settings.streamingEnabled);
   settings.taskPlacementEnabled = Boolean(settings.taskPlacementEnabled);
   settings.taskPlacementAfterSourceId = textOf(settings.taskPlacementAfterSourceId);
+  settings.replaceLastUserMessageWithTask = Boolean(settings.replaceLastUserMessageWithTask);
+  settings.omitOriginalUserMessages = Boolean(settings.omitOriginalUserMessages);
   settings.components = settings.components.map((item) => normalizeComponent(item, targetWindow, getContext()));
 }
 
@@ -155,6 +159,8 @@ async function buildMessages(latestMessage) {
     promptSourceItems,
     substituteParams: context.substituteParams,
     taskPlacement: { enabled: settings.taskPlacementEnabled, afterSourceId: settings.taskPlacementAfterSourceId },
+    replaceLastUserMessageWithTask: settings.replaceLastUserMessageWithTask,
+    omitOriginalUserMessages: settings.omitOriginalUserMessages,
   });
   lastRuntimeDiagnostics = createRuntimePromptDiagnostics({ context, promptSourceItems: messages.promptSourceItems || promptSourceItems, runtimeInsertions: messages.runtimeInsertions });
   return messages;
@@ -432,11 +438,15 @@ async function applyPresetScheme(snapshot) {
   settings.activeSourcePreset = textOf(snapshot.activeSourcePreset);
   settings.taskPlacementEnabled = Boolean(snapshot.taskPlacementEnabled);
   settings.taskPlacementAfterSourceId = textOf(snapshot.taskPlacementAfterSourceId);
+  settings.replaceLastUserMessageWithTask = Boolean(snapshot.replaceLastUserMessageWithTask);
+  settings.omitOriginalUserMessages = Boolean(snapshot.omitOriginalUserMessages);
   renderSourcePresetSelect();
   if (settings.activeSourcePreset) $t('#st-esg-source-preset').val(settings.activeSourcePreset);
   await scanImportCandidates();
   mergeSchemeObject('promptSelections', snapshot.promptSelections);
   mergeSchemeObject('sourceContentOverrides', snapshot.sourceContentOverrides);
+  $t('#st-esg-replace-last-user-message').prop('checked', settings.replaceLastUserMessageWithTask);
+  $t('#st-esg-omit-original-user-messages').prop('checked', settings.omitOriginalUserMessages);
   renderImportCandidates();
   renderTaskPlacementOptions();
 }
@@ -1027,7 +1037,7 @@ function renderPluginPanel() {
         <section class="st-esg-tab-panel" data-tab-panel="workspace"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">生成内容</div><div class="st-esg-card-desc">这里是状态栏生成结果。你可以先检查，再注入最新回复。</div></div></div><textarea id="st-esg-preview" class="text_pole textarea_compact st-esg-textarea st-esg-preview" rows="11" placeholder="生成后的状态栏会出现在这里。"></textarea></div><div class="st-esg-workflow"><div class="st-esg-step"><b>1</b><span>读取最新助手回复</span></div><div class="st-esg-step"><b>2</b><span>按组件与任务生成</span></div><div class="st-esg-step"><b>3</b><span>预览后写回正文末尾</span></div></div></section>
         <section class="st-esg-tab-panel" data-tab-panel="runtime"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">运行模式</div><div class="st-esg-card-desc">控制插件是否监听正文生成，以及生成后是否自动注入。</div></div><label class="st-esg-switch"><input id="st-esg-enabled" type="checkbox" /><span></span><em>启用</em></label></div><select id="st-esg-mode" class="text_pole st-esg-select"><option value="autoInject">自动生成，并自动注入最新回复</option><option value="autoReview">自动生成，但手动确认注入</option><option value="manual">手动点击生成，手动注入</option></select></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">生成任务指令</div><div class="st-esg-card-desc">编辑最终发送给模型的任务指令；写 {{external_components}} 的位置会插入组件库内容，不写则不发送组件。</div></div></div><textarea id="st-esg-task" class="text_pole textarea_compact st-esg-textarea" rows="7"></textarea>${renderSchemeManager('task')}<label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-task-placement-enabled" type="checkbox" /><span>自定义任务指令插入位置</span><em>开启后插入到指定预设条目之后；关闭时仍追加到末尾。</em></label><div id="st-esg-task-placement-row" class="st-esg-grid"><label>插入到这条预设之后<select id="st-esg-task-placement-after" class="text_pole"></select></label></div><div class="st-esg-actions-row"><div id="st-esg-reset-task" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-rotate-left"></i><span>恢复默认提示词</span></div></div></div></section>
         <section class="st-esg-tab-panel" data-tab-panel="api"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">独立 API</div><div class="st-esg-card-desc">支持 OpenAI-compatible /v1/chat/completions。留空时不会生成内容。</div></div></div><div class="st-esg-grid"><label>API 地址<input id="st-esg-api-url" class="text_pole" type="text" placeholder="例如 https://api.openai.com/v1" /></label><label>模型名称<input id="st-esg-api-model" class="text_pole" type="text" list="st-esg-model-options" placeholder="例如 gpt-4o-mini / deepseek-chat" /><datalist id="st-esg-model-options"></datalist></label><label>最大输出<input id="st-esg-max-tokens" class="text_pole" type="number" min="1" step="1" /></label><label>温度<input id="st-esg-temperature" class="text_pole" type="number" min="0" max="2" step="0.1" /></label></div><label class="st-esg-secret-label">API Key<input id="st-esg-api-key" class="text_pole" type="password" placeholder="可选。多数独立 API 需要填写。" /></label>${renderSchemeManager('api')}<label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-streaming-enabled" type="checkbox" /><span>启用流式传输</span><em>开启后生成结果会随着 API 返回逐步显示。</em></label><div class="st-esg-actions-row"><div id="st-esg-fetch-models" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-cloud-arrow-down"></i><span>拉取模型</span></div></div></div></section>
-        <section class="st-esg-tab-panel" data-tab-panel="sources"><div class="st-esg-card st-esg-import-tools"><div class="st-esg-card-head"><div><div id="st-esg-source-mode-title" class="st-esg-card-title">提示词模式</div><div id="st-esg-source-mode-desc" class="st-esg-card-desc">当前勾选会作为外置生成时启用的来源，不会导入组件库。</div></div></div><div class="st-esg-grid"><label>来源模式<select id="st-esg-source-mode" class="text_pole"><option value="prompt">提示词模式</option><option value="import">导入组件库模式</option></select></label><label>导入到<select id="st-esg-import-target-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div><div class="st-esg-actions-row"><div id="st-esg-scan-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-list-check"></i><span>同步来源</span></div><div id="st-esg-import-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>已自动保存勾选</span></div></div></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">预设</div><div class="st-esg-card-desc">用选择框切换预设；下方只显示当前选择的预设条目。</div></div></div><div class="st-esg-grid"><label>选择预设<select id="st-esg-source-preset" class="text_pole"></select></label></div><div id="st-esg-preset-placement-slot" class="st-esg-scheme-box"></div>${renderSchemeManager('preset')}<div id="st-esg-preset-candidates" class="st-esg-import-list"><div class="st-esg-empty st-esg-empty-small">还没有预设条目。选择预设后点击“同步来源”。</div></div></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">世界书</div><div class="st-esg-card-desc">这里是独立的世界书列表；点进某本世界书后只替换这张卡片。</div></div></div>${renderSchemeManager('worldbook')}<div id="st-esg-worldbook-candidates" class="st-esg-import-list"><div class="st-esg-empty st-esg-empty-small">还没有世界书来源。点击“同步来源”后会按分类列出。</div></div></div></section>
+        <section class="st-esg-tab-panel" data-tab-panel="sources"><div class="st-esg-card st-esg-import-tools"><div class="st-esg-card-head"><div><div id="st-esg-source-mode-title" class="st-esg-card-title">提示词模式</div><div id="st-esg-source-mode-desc" class="st-esg-card-desc">当前勾选会作为外置生成时启用的来源，不会导入组件库。</div></div></div><div class="st-esg-grid"><label>来源模式<select id="st-esg-source-mode" class="text_pole"><option value="prompt">提示词模式</option><option value="import">导入组件库模式</option></select></label><label>导入到<select id="st-esg-import-target-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div><div class="st-esg-actions-row"><div id="st-esg-scan-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-list-check"></i><span>同步来源</span></div><div id="st-esg-import-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>已自动保存勾选</span></div></div></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">预设</div><div class="st-esg-card-desc">用选择框切换预设；下方只显示当前选择的预设条目。</div></div></div><div class="st-esg-grid"><label>选择预设<select id="st-esg-source-preset" class="text_pole"></select></label></div><div id="st-esg-preset-placement-slot" class="st-esg-scheme-box"><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-replace-last-user-message" type="checkbox" /><span>用任务指令替换 {{LastUserMessage}}</span><em>开启后预设里的 {{LastUserMessage}} 会使用当前任务指令内容。</em></label><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-omit-original-user-messages" type="checkbox" /><span>不发送原用户输入</span><em>开启后聊天历史里的 user 消息不会发送给外置 API。</em></label></div>${renderSchemeManager('preset')}<div id="st-esg-preset-candidates" class="st-esg-import-list"><div class="st-esg-empty st-esg-empty-small">还没有预设条目。选择预设后点击“同步来源”。</div></div></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">世界书</div><div class="st-esg-card-desc">这里是独立的世界书列表；点进某本世界书后只替换这张卡片。</div></div></div>${renderSchemeManager('worldbook')}<div id="st-esg-worldbook-candidates" class="st-esg-import-list"><div class="st-esg-empty st-esg-empty-small">还没有世界书来源。点击“同步来源”后会按分类列出。</div></div></div></section>
         <section class="st-esg-tab-panel" data-tab-panel="components"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">手动添加组件</div><div class="st-esg-card-desc">组件库只管理最终会发送的组件；从预设和世界书导入请去“预设/世界书”页。</div></div></div><div class="st-esg-grid"><label>组件名<input id="st-esg-component-name" class="text_pole" type="text" placeholder="例如：人物状态栏" /></label><label>归属<select id="st-esg-component-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div><textarea id="st-esg-component-content" class="text_pole textarea_compact st-esg-textarea" rows="5" placeholder="在这里粘贴状态栏格式、要求或组件提示词。"></textarea><div class="st-esg-actions-row"><div id="st-esg-add-component" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-plus"></i><span>添加到组件库</span></div></div></div><div id="st-esg-component-list" class="st-esg-component-list"></div></section>
         <section class="st-esg-tab-panel" data-tab-panel="debug"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">提示词日志</div><div class="st-esg-card-desc">按 API messages 分栏查看；复制日志仍会复制完整 JSON，不保存 API Key。</div></div></div><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-compress-system" type="checkbox" /><span>压缩连续系统消息</span><em>将连续 system 合并为一条，遇到 user/assistant 会断开。</em></label><div id="st-esg-prompt-log-summary" class="st-esg-prompt-log-summary"></div><div id="st-esg-prompt-log-view" class="st-esg-prompt-log-view"></div><textarea id="st-esg-prompt-log" class="st-esg-hidden-log" readonly></textarea><div class="st-esg-actions-row"><div id="st-esg-copy-prompt-log" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-copy"></i><span>复制完整日志</span></div><div id="st-esg-clear-prompt-log" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-eraser"></i><span>清空日志</span></div></div></div></section>
         <section class="st-esg-tab-panel" data-tab-panel="output"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">注入方式</div><div class="st-esg-card-desc">直接注入模型输出原文，不再添加插件自定义包裹标记。</div></div></div><select id="st-esg-inject-mode" class="text_pole st-esg-select"><option value="replace">清理旧版 ST 标记后追加</option><option value="append">始终追加到最新回复末尾</option></select></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">输出清理</div><div class="st-esg-card-desc">每行一个标签或包裹符，用于清理模型多余输出。</div></div></div><textarea id="st-esg-cleanup-tags" class="text_pole textarea_compact st-esg-textarea" rows="5" placeholder="例如：&#10;<status>&#10;</status>"></textarea></div><div class="st-esg-card st-esg-compact-card"><label class="st-esg-checkbox"><input id="st-esg-ball-visible" type="checkbox" /><span>显示可选悬浮快捷按钮</span></label></div></section>
@@ -1046,6 +1056,8 @@ function bindPanelEvents() {
   $t('#st-esg-mode').val(settings.mode);
   $t('#st-esg-task').val(settings.taskPrompt);
   $t('#st-esg-task-placement-enabled').prop('checked', settings.taskPlacementEnabled);
+  $t('#st-esg-replace-last-user-message').prop('checked', settings.replaceLastUserMessageWithTask);
+  $t('#st-esg-omit-original-user-messages').prop('checked', settings.omitOriginalUserMessages);
   $t('#st-esg-preview').val(settings.lastGenerated);
   $t('#st-esg-compress-system').prop('checked', settings.compressSystemMessages);
   $t('#st-esg-api-url').val(settings.apiUrl);
@@ -1110,6 +1122,14 @@ function bindPanelEvents() {
   });
   $t('#st-esg-task-placement-after').on('change', function () {
     settings.taskPlacementAfterSourceId = String($(this).val() || '');
+    saveSettings();
+  });
+  $t('#st-esg-replace-last-user-message').on('change', function () {
+    settings.replaceLastUserMessageWithTask = Boolean($(this).prop('checked'));
+    saveSettings();
+  });
+  $t('#st-esg-omit-original-user-messages').on('change', function () {
+    settings.omitOriginalUserMessages = Boolean($(this).prop('checked'));
     saveSettings();
   });
   $t('#st-esg-reset-task').on('click', function () {
