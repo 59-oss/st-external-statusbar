@@ -14,15 +14,15 @@ import {
   getCurrentPresetNameSafe,
   getPresetNamesSafe,
   normalizeComponent,
-} from './component-sources.js?ver=0.3.65';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.65';
-import { injectStatusbarText } from './inject-utils.js?ver=0.3.65';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.65';
-import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.65';
-import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.65';
+} from './component-sources.js?ver=0.3.66';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.66';
+import { injectStatusbarText } from './inject-utils.js?ver=0.3.66';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.66';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.66';
+import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.66';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.65';
+const EXTENSION_VERSION = '0.3.66';
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -716,10 +716,10 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
   };
   const renderGroup = (group) => {
     const shouldOpen = group.uiOpen || viewState.openGroups.has(group.groupIndex) || (group.loaded && group.scope !== SOURCE_WORLDBOOK);
-    return `<details class="st-esg-import-group" data-group-index="${group.groupIndex}" ${shouldOpen ? 'open' : ''}><summary class="st-esg-import-group-head"><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loaded ? `${group.items.length} 个可导入条目` : '未加载，点开读取'}</div></div>${group.loaded ? '<button class="menu_button st-esg-import-group-toggle" type="button">本组全选</button>' : ''}</summary><div class="st-esg-import-group-list">${groupBody(group)}</div></details>`;
+    return `<details class="st-esg-import-group" data-group-index="${group.groupIndex}" ${shouldOpen ? 'open' : ''}><summary class="st-esg-import-group-head"><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loaded ? `${group.items.length} 个可导入条目` : '未加载，点开读取'}</div></div>${group.loaded ? '<button class="menu_button st-esg-import-group-toggle" type="button">全选条目</button>' : ''}</summary><div class="st-esg-import-group-list">${groupBody(group)}</div></details>`;
   };
   const renderWorldbookRow = (group) => `<button class="st-esg-worldbook-row" type="button" data-group-index="${group.groupIndex}"><span>${escapeHtml(group.group)}</span><em>${group.loaded ? `${group.items.length} 个条目` : '点进查看'}</em><i class="fa-solid fa-chevron-right"></i></button>`;
-  const renderWorldbookDetail = (group) => `<div class="st-esg-worldbook-detail" data-group-index="${group.groupIndex}"><div class="st-esg-detail-head"><button class="menu_button st-esg-back-worldbooks" type="button"><i class="fa-solid fa-arrow-left"></i><span>返回世界书列表</span></button><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loading ? '正在加载条目...' : group.loaded ? `${group.items.length} 个可导入条目` : '准备加载这本世界书'}</div></div>${group.loaded ? '<button class="menu_button st-esg-import-detail-toggle" type="button">本书全选</button>' : ''}</div><div class="st-esg-import-group-list">${groupBody(group)}</div></div>`;
+  const renderWorldbookDetail = (group) => `<div class="st-esg-worldbook-detail" data-group-index="${group.groupIndex}"><div class="st-esg-detail-head"><button class="menu_button st-esg-back-worldbooks" type="button"><i class="fa-solid fa-arrow-left"></i><span>返回世界书列表</span></button><div><div class="st-esg-import-group-title">${escapeHtml(group.group)}</div><div class="st-esg-card-desc">${group.loading ? '正在加载条目...' : group.loaded ? `${group.items.length} 个可导入条目` : '准备加载这本世界书'}</div></div>${group.loaded ? '<button class="menu_button st-esg-import-detail-toggle" type="button">全选条目</button>' : ''}</div><div class="st-esg-import-group-list">${groupBody(group)}</div></div>`;
   const detailGroup = activeWorldbookGroupIndex === null ? null : groupsWithIndex.find((group) => group.groupIndex === activeWorldbookGroupIndex && group.scope === SOURCE_WORLDBOOK);
   const worldbookSection = detailGroup
     ? renderWorldbookDetail(detailGroup)
@@ -781,7 +781,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     const shouldCheck = checks.toArray().some((item) => !$(item).prop('checked'));
     checks.prop('checked', shouldCheck);
     syncSelectionForChecks(checks);
-    $(this).text(shouldCheck ? '取消本组' : '本组全选');
+    $(this).text(shouldCheck ? '取消全选' : '全选条目');
   });
   if (renderWorldbook) $t('.st-esg-import-detail-toggle').on('click', function (event) {
     event.preventDefault();
@@ -790,7 +790,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     const shouldCheck = checks.toArray().some((item) => !$(item).prop('checked'));
     checks.prop('checked', shouldCheck);
     syncSelectionForChecks(checks);
-    $(this).text(shouldCheck ? '取消本书' : '本书全选');
+    $(this).text(shouldCheck ? '取消全选' : '全选条目');
   });
 }
 

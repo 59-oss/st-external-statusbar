@@ -306,8 +306,10 @@ details.st-esg-import-item[open] > summary { border-bottom: 1px solid #d6d6d6; }
 .st-esg-source-expand { display: inline-flex !important; align-items: center; justify-content: center; width: 32px; min-width: 32px; height: 32px; padding: 0 !important; border-radius: 999px !important; }
 .st-esg-source-expand i { transition: transform 140ms ease; }
 details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180deg); }
-.st-esg-source-actions { display: flex; justify-content: flex-end; gap: 8px; }
-.st-esg-source-actions .menu_button { min-height: 32px; padding-inline: 14px !important; border-radius: 999px !important; }
+.st-esg-source-actions { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.st-esg-source-actions .menu_button { display: inline-flex !important; align-items: center; justify-content: center; width: auto !important; min-width: 64px; max-width: none; min-height: 32px; margin: 0 !important; padding-inline: 14px !important; border-radius: 999px !important; white-space: nowrap; }
+.st-esg-source-cancel { order: 1; }
+.st-esg-source-confirm { order: 2; }
 .st-esg-source-confirm { color: #fff !important; border-color: #000 !important; background: #000 !important; }
 .st-esg-source-confirm:hover { color: #fff !important; background: #222 !important; }
 .st-esg-import-meta { color: #666; font-size: 12px; }
