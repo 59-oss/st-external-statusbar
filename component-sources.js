@@ -387,8 +387,11 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
     const prompts = Array.isArray(inUsePreset.prompts) ? inUsePreset.prompts : [];
     const promptMap = new Map(prompts.map((prompt) => [textOf(prompt?.identifier || prompt?.id || prompt?.name), prompt]).filter(([id]) => Boolean(id)));
     const orderList = getActivePresetPromptOrder(inUsePreset);
-    console.log('[扫描调试] inUse orderList identifiers:', orderList.map((orderItem) => orderItem?.identifier));
-    console.log('[扫描调试] inUse promptMap keys:', [...promptMap.keys()]);
+    const scanDebug = {
+      type: 'inUsePreset',
+      orderListIdentifiers: orderList.map((orderItem) => orderItem?.identifier),
+      promptMapKeys: [...promptMap.keys()],
+    };
     const used = new Set();
     const addPrompt = (rawPrompt, sourceOrder, enabled = rawPrompt?.enabled !== false) => {
       const identifier = textOf(rawPrompt?.identifier || rawPrompt?.id || rawPrompt?.name);
@@ -423,7 +426,7 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
         addPrompt(rawPrompt, sourceOrder);
       });
     }
-    return [{ scope: SOURCE_PRESET, group: groupName, source: selected, loaded: true, items: candidates }];
+    return [{ scope: SOURCE_PRESET, group: groupName, source: selected, loaded: true, items: candidates, debug: scanDebug }];
   }
   let preset = null;
   try { preset = targetWindow?.TavernHelper?.getPreset?.(selected) || null; } catch (_) {}
