@@ -14,15 +14,15 @@ import {
   getCurrentPresetNameSafe,
   getPresetNamesSafe,
   normalizeComponent,
-} from './component-sources.js?ver=0.3.66';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.66';
-import { injectStatusbarText } from './inject-utils.js?ver=0.3.66';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.66';
-import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.66';
-import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.66';
+} from './component-sources.js?ver=0.3.67';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.67';
+import { injectStatusbarText } from './inject-utils.js?ver=0.3.67';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.67';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.67';
+import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.67';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.66';
+const EXTENSION_VERSION = '0.3.67';
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -564,7 +564,7 @@ function renderSourceContentEditor(item, groupIndex, itemIndex) {
   }
   const textarea = `<textarea class="text_pole textarea_compact st-esg-textarea st-esg-source-content" rows="7" data-group-index="${groupIndex}" data-item-index="${itemIndex}" ${item?.locked ? 'readonly' : ''}>${escapeHtml(value)}</textarea>`;
   if (item?.locked) return textarea;
-  return `${textarea}<div class="st-esg-source-actions"><button class="menu_button st-esg-source-cancel" type="button" data-group-index="${groupIndex}" data-item-index="${itemIndex}">取消</button><button class="menu_button st-esg-source-confirm" type="button" data-group-index="${groupIndex}" data-item-index="${itemIndex}">确认</button></div>`;
+  return `${textarea}<div class="st-esg-source-actions"><button class="menu_button st-esg-source-confirm" type="button" data-group-index="${groupIndex}" data-item-index="${itemIndex}">确认</button><button class="menu_button st-esg-source-cancel" type="button" data-group-index="${groupIndex}" data-item-index="${itemIndex}">取消</button></div>`;
 }
 
 function renderTaskPlacementOptions() {

@@ -283,7 +283,10 @@
 .st-esg-back-worldbooks { min-width: fit-content; }
 .st-esg-import-group { border: 1px solid #d6d6d6; border-radius: 16px; background: #fff; overflow: hidden; }
 .st-esg-import-group-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; cursor: pointer; background: #f7f7f7; }
+.st-esg-import-group-head > div { min-width: 0; }
 .st-esg-import-group[open] > .st-esg-import-group-head { border-bottom: 1px solid #d6d6d6; }
+.st-esg-import-group-toggle,
+.st-esg-import-detail-toggle { display: inline-flex !important; align-items: center; justify-content: center; width: auto !important; min-width: 88px; max-width: none; min-height: 36px; padding-inline: 14px !important; border-radius: 999px !important; line-height: 1 !important; white-space: nowrap !important; word-break: keep-all !important; writing-mode: horizontal-tb !important; text-orientation: mixed !important; }
 .st-esg-import-group-title { color: #050505; font-weight: 760; }
 .st-esg-import-group-list { display: grid; gap: 10px; padding: 10px; }
 .st-esg-import-item,
@@ -307,9 +310,9 @@ details.st-esg-import-item[open] > summary { border-bottom: 1px solid #d6d6d6; }
 .st-esg-source-expand i { transition: transform 140ms ease; }
 details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180deg); }
 .st-esg-source-actions { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: 8px; }
-.st-esg-source-actions .menu_button { display: inline-flex !important; align-items: center; justify-content: center; width: auto !important; min-width: 64px; max-width: none; min-height: 32px; margin: 0 !important; padding-inline: 14px !important; border-radius: 999px !important; white-space: nowrap; }
-.st-esg-source-cancel { order: 1; }
-.st-esg-source-confirm { order: 2; }
+.st-esg-source-actions .menu_button { display: inline-flex !important; align-items: center; justify-content: center; width: auto !important; min-width: 64px; max-width: none; min-height: 32px; margin: 0 !important; padding-inline: 14px !important; border-radius: 999px !important; line-height: 1 !important; white-space: nowrap !important; word-break: keep-all !important; writing-mode: horizontal-tb !important; text-orientation: mixed !important; }
+.st-esg-source-confirm { order: 1; }
+.st-esg-source-cancel { order: 2; }
 .st-esg-source-confirm { color: #fff !important; border-color: #000 !important; background: #000 !important; }
 .st-esg-source-confirm:hover { color: #fff !important; background: #222 !important; }
 .st-esg-import-meta { color: #666; font-size: 12px; }
