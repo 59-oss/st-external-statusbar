@@ -401,7 +401,7 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
         used.add(identifier);
         const rawPrompt = promptMap.get(identifier);
         const markerPrompt = getBuiltinMarkerPrompt(identifier, context);
-        const prompt = rawPrompt?.marker || (markerPrompt && !textOf(rawPrompt?.content)) ? markerPrompt : rawPrompt || markerPrompt;
+        const prompt = (rawPrompt?.marker || (markerPrompt && !textOf(rawPrompt?.content))) ? markerPrompt : rawPrompt || markerPrompt;
         if (!prompt) return;
         addPrompt(prompt, sourceOrder, orderItem?.enabled !== false);
       });
@@ -416,19 +416,6 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
       });
     }
     return [{ scope: SOURCE_PRESET, group: groupName, source: selected, loaded: true, items: candidates }];
-    inUsePreset.prompts.forEach((rawPrompt, sourceOrder) => {
-      const identifier = textOf(rawPrompt?.identifier || rawPrompt?.id || rawPrompt?.name);
-      const markerPrompt = getNativePlaceholderMarker(targetWindow, rawPrompt, context);
-      const prompt = markerPrompt || rawPrompt;
-      addImportCandidate(candidates, `预设：${selected}`, selected, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content, rawPrompt?.enabled !== false, {
-        sourceOrder,
-        sourceUid: prompt?.identifier || prompt?.id || identifier,
-        role: prompt?.role || rawPrompt?.role,
-        markerType: prompt?.markerType,
-        locked: Boolean(prompt?.locked || prompt?.markerType),
-      });
-    });
-    return [{ scope: SOURCE_PRESET, group: `预设：${selected}`, source: selected, loaded: true, items: candidates }];
   }
   let preset = null;
   try { preset = targetWindow?.TavernHelper?.getPreset?.(selected) || null; } catch (_) {}
@@ -444,7 +431,7 @@ export function collectPresetImportGroups({ targetWindow, context, presetName = 
     used.add(identifier);
     const rawPrompt = promptMap.get(identifier);
     const markerPrompt = getBuiltinMarkerPrompt(identifier, context);
-    const prompt = rawPrompt?.marker || (markerPrompt && !textOf(rawPrompt?.content)) ? markerPrompt : rawPrompt || markerPrompt;
+    const prompt = (rawPrompt?.marker || (markerPrompt && !textOf(rawPrompt?.content))) ? markerPrompt : rawPrompt || markerPrompt;
     if (!prompt) return;
     addImportCandidate(candidates, `预设：${selected}`, selected, SOURCE_PRESET, prompt?.name || prompt?.identifier || prompt?.id, prompt?.content, orderItem?.enabled !== false, {
       sourceOrder,

@@ -96,6 +96,34 @@ assert.deepEqual(inUsePresetGroups[0].items.map((item) => Boolean(item.locked)),
 assert.deepEqual(inUsePresetGroups[0].items.map((item) => item.markerType || ''), ['', 'worldInfoBefore', 'charDescription', '']);
 assert.equal(inUsePresetGroups[0].items[3].enabled, false);
 
+const inUseMarkerTrueGroups = collectPresetImportGroups({
+  targetWindow: {
+    getPreset: (name) => name === 'in_use' ? {
+      prompt_order: [{ character_id: 100001, order: [
+        { identifier: 'worldInfoBefore', enabled: true },
+        { identifier: 'charDescription', enabled: true },
+        { identifier: 'chatHistory', enabled: true },
+      ] }],
+      prompts: [
+        { identifier: 'worldInfoBefore', name: 'World Info (before)', system_prompt: true, marker: true },
+        { identifier: 'charDescription', name: 'Char Description', system_prompt: true, marker: true },
+        { identifier: 'chatHistory', name: 'Chat History', system_prompt: true, marker: true },
+      ],
+    } : null,
+    getPresetManager: () => ({ getSelectedPresetName: () => 'In Use Marker True Preset' }),
+    TavernHelper: {
+      getPresetNames: () => ['In Use Marker True Preset'],
+      getPreset: () => null,
+    },
+  },
+  context,
+});
+assert.deepEqual(
+  inUseMarkerTrueGroups[0].items.map((item) => item.markerType || ''),
+  ['worldInfoBefore', 'charDescription', 'chatHistory'],
+);
+assert.ok(inUseMarkerTrueGroups[0].items.every((item) => item.locked));
+
 const namedPlaceholderGroups = collectPresetImportGroups({
   targetWindow: {
     getPreset: (name) => name === 'in_use' ? {
