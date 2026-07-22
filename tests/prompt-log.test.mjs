@@ -103,4 +103,5 @@ const viewModel = createPromptLogViewModel(JSON.stringify({
 assert.equal(viewModel.summary.messageCount, 2);
 assert.deepEqual(viewModel.messages.map((message) => message.role), ['system', 'assistant']);
 assert.deepEqual(viewModel.messages.map((message) => message.content), ['System prompt', 'Assistant prompt']);
-assert.ok(viewModel.messages[0].characterCount > 0);
+assert.ok(viewModel.messages[0].tokenEstimate > 0);
+assert.equal(viewModel.messages[0].tokenEstimateLabel, `约 ${viewModel.messages[0].tokenEstimate} tokens`);

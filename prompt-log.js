@@ -33,6 +33,15 @@ function normalizeMessages(messages) {
   }));
 }
 
+function estimateTokenCount(content) {
+  const text = textOf(content).trim();
+  if (!text) return 0;
+  const cjkChars = (text.match(/[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]/gu) || []).length;
+  const nonCjkText = text.replace(/[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]/gu, ' ');
+  const wordLikeTokens = (nonCjkText.match(/[A-Za-z0-9_]+|[^\sA-Za-z0-9_]/gu) || []).length;
+  return Math.max(1, Math.ceil(cjkChars + wordLikeTokens * 0.75));
+}
+
 export function mergeConsecutiveSystemMessages(messages = []) {
   const cleanMessages = normalizeMessages(messages);
   const merged = [];
@@ -59,13 +68,18 @@ export function createPromptLogViewModel(logText = '') {
     role: message.role,
     content: message.content,
     characterCount: message.content.length,
+    tokenEstimate: estimateTokenCount(message.content),
+    tokenEstimateLabel: `约 ${estimateTokenCount(message.content)} tokens`,
   }));
+  const totalTokenEstimate = messages.reduce((sum, message) => sum + message.tokenEstimate, 0);
   return {
     summary: {
       createdAt: textOf(parsed?.createdAt),
       model: textOf(parsed?.request?.model),
       messageCount: Number(parsed?.summary?.messageCount) || messages.length,
       characterCount: Number(parsed?.summary?.characterCount) || messages.reduce((sum, message) => sum + message.characterCount, 0),
+      tokenEstimate: totalTokenEstimate,
+      tokenEstimateLabel: `约 ${totalTokenEstimate} tokens`,
       extensionVersion: textOf(parsed?.summary?.extensionVersion),
       compressedSystemMessages: Boolean(parsed?.summary?.compressedSystemMessages),
     },

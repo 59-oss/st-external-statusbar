@@ -237,8 +237,9 @@
 .st-esg-prompt-log-summary span { padding: 5px 8px; border: 1px solid #d6d6d6; border-radius: 999px; background: #f7f7f7; }
 .st-esg-prompt-log-view { display: grid; gap: 8px; max-height: 420px; overflow: auto; padding-right: 2px; }
 .st-esg-prompt-message { border: 1px solid #d6d6d6; border-radius: 12px; background: #f7f7f7; overflow: hidden; }
-.st-esg-prompt-message summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 42px; padding: 9px 10px; cursor: pointer; color: #111; }
+.st-esg-prompt-message summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; min-height: 42px; padding: 9px 10px; cursor: pointer; color: #111; }
 .st-esg-prompt-message summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.st-esg-prompt-message summary em { color: #666; font-style: normal; font-size: 11px; white-space: nowrap; }
 .st-esg-prompt-message pre { margin: 0; padding: 10px; max-height: 280px; overflow: auto; border-top: 1px solid #d6d6d6; color: #050505; white-space: pre-wrap; word-break: break-word; background: #fff; font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); font-size: 12px; line-height: 1.52; }
 .st-esg-prompt-role-system summary { border-left: 4px solid #6b7280; }
 .st-esg-prompt-role-assistant summary { border-left: 4px solid #dc2626; }

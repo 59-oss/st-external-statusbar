@@ -14,15 +14,15 @@ import {
   getCurrentPresetNameSafe,
   getPresetNamesSafe,
   normalizeComponent,
-} from './component-sources.js?ver=0.3.58';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.58';
-import { injectStatusbarText } from './inject-utils.js?ver=0.3.58';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.58';
-import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.58';
-import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.58';
+} from './component-sources.js?ver=0.3.59';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.59';
+import { injectStatusbarText } from './inject-utils.js?ver=0.3.59';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.59';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.59';
+import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.59';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.58';
+const EXTENSION_VERSION = '0.3.59';
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -244,12 +244,12 @@ function renderPromptLog() {
   summaryBox.html([
     `<span>模型：${escapeHtml(viewModel.summary.model || '未知')}</span>`,
     `<span>${viewModel.summary.messageCount} 条消息</span>`,
-    `<span>${viewModel.summary.characterCount} 字符</span>`,
+    `<span>${escapeHtml(viewModel.summary.tokenEstimateLabel)}</span>`,
     viewModel.summary.compressedSystemMessages ? '<span>已压缩 system</span>' : '',
   ].filter(Boolean).join(''));
   viewBox.html(viewModel.messages.map((message) => {
     const roleClass = ['system', 'assistant', 'user'].includes(message.role) ? message.role : 'other';
-    return `<details class="st-esg-prompt-message st-esg-prompt-role-${roleClass}"><summary><span>Role: ${escapeHtml(message.role)} | Chars: ${message.characterCount}</span><button class="menu_button st-esg-copy-message" type="button" data-message-index="${message.index}" title="复制本条"><i class="fa-solid fa-copy"></i></button></summary><pre>${escapeHtml(message.content)}</pre></details>`;
+    return `<details class="st-esg-prompt-message st-esg-prompt-role-${roleClass}"><summary><span>${escapeHtml(message.role)}</span><em>${escapeHtml(message.tokenEstimateLabel)}</em><button class="menu_button st-esg-copy-message" type="button" data-message-index="${message.index}" title="复制本条"><i class="fa-solid fa-copy"></i></button></summary><pre>${escapeHtml(message.content)}</pre></details>`;
   }).join('') || '<div class="st-esg-empty st-esg-empty-small">日志里没有 messages。</div>');
   $t('.st-esg-copy-message').on('click', async function (event) {
     event.preventDefault();
