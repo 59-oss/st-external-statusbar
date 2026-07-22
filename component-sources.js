@@ -42,8 +42,15 @@ export function getPresetPromptEnabledMap(targetWindow, name) {
 
 function getActivePresetPromptOrder(preset) {
   const lists = Array.isArray(preset?.prompt_order) ? preset.prompt_order : [];
-  const preferred = lists.find((list) => String(list?.character_id) === '100001' && Array.isArray(list?.order));
-  return (preferred || lists.find((list) => Array.isArray(list?.order)))?.order || [];
+  const validLists = lists.filter((list) => Array.isArray(list?.order));
+  if (!validLists.length) return [];
+
+  const dummy = validLists.find((list) => String(list?.character_id) === '100000');
+  if (dummy) return dummy.order;
+
+  const scoreOf = (list) => list.order.filter((item) => getBuiltinMarkerType(item?.identifier)).length;
+  const best = [...validLists].sort((a, b) => scoreOf(b) - scoreOf(a))[0];
+  return best?.order || [];
 }
 
 function getSelectedCharacter(context) {
@@ -107,9 +114,8 @@ function getBuiltinMarkerPrompt(identifier, context) {
     identifier: markerType,
     name: marker.name,
     role: 'system',
-    content: textOf(content) || marker.content || `【${marker.name} 会在生成时展开】`,
-    markerType,
     content: placeholderOnly ? '' : textOf(content),
+    markerType,
     locked: true,
   };
 }

@@ -124,6 +124,46 @@ assert.deepEqual(
 );
 assert.ok(inUseMarkerTrueGroups[0].items.every((item) => item.locked));
 
+const dualPromptOrderGroups = collectPresetImportGroups({
+  targetWindow: {
+    getPresetManager: () => ({ getSelectedPresetName: () => 'Dual Order Preset' }),
+    TavernHelper: {
+      getPresetNames: () => ['Dual Order Preset'],
+      getPreset: () => ({
+        prompt_order: [{ character_id: 100000, order: [
+          { identifier: 'worldInfoBefore', enabled: true },
+          { identifier: 'charDescription', enabled: true },
+          { identifier: 'charPersonality', enabled: true },
+          { identifier: 'scenario', enabled: true },
+          { identifier: 'worldInfoAfter', enabled: true },
+          { identifier: 'dialogueExamples', enabled: true },
+          { identifier: 'chatHistory', enabled: true },
+        ] }, { character_id: 100001, order: [
+          { identifier: 'uuid-system-shell', enabled: true },
+          { identifier: 'uuid-history-shell', enabled: true },
+        ] }],
+        prompts: [
+          { identifier: 'worldInfoBefore', name: 'World Info (before)', system_prompt: true, marker: true },
+          { identifier: 'charDescription', name: 'Char Description', system_prompt: true, marker: true },
+          { identifier: 'charPersonality', name: 'Char Personality', system_prompt: true, marker: true },
+          { identifier: 'scenario', name: 'Scenario', system_prompt: true, marker: true },
+          { identifier: 'worldInfoAfter', name: 'World Info (after)', system_prompt: true, marker: true },
+          { identifier: 'dialogueExamples', name: 'Chat Examples', system_prompt: true, marker: true },
+          { identifier: 'chatHistory', name: 'Chat History', system_prompt: true, marker: true },
+          { identifier: 'uuid-system-shell', name: 'UUID shell', content: '<shell>' },
+          { identifier: 'uuid-history-shell', name: 'UUID history shell', content: '</shell>' },
+        ],
+      }),
+    },
+  },
+  context,
+  presetName: 'Dual Order Preset',
+});
+assert.deepEqual(
+  dualPromptOrderGroups[0].items.slice(0, 7).map((item) => item.markerType || ''),
+  ['worldInfoBefore', 'charDescription', 'charPersonality', 'scenario', 'worldInfoAfter', 'dialogueExamples', 'chatHistory'],
+);
+assert.ok(dualPromptOrderGroups[0].items.slice(0, 7).every((item) => item.locked));
 const namedPlaceholderGroups = collectPresetImportGroups({
   targetWindow: {
     getPreset: (name) => name === 'in_use' ? {

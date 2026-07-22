@@ -5,12 +5,12 @@ const markerTargetWindow = {
   TavernHelper: {
     getPreset: () => ({
       prompt_order: [{
-        character_id: 100000,
+        character_id: 100001,
         order: [
           { identifier: 'custom-system', enabled: true },
         ],
       }, {
-        character_id: 100001,
+        character_id: 100000,
         order: [
           { identifier: 'worldInfoBefore', enabled: true },
           { identifier: 'charDescription', enabled: true },
