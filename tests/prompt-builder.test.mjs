@@ -284,6 +284,42 @@ assert.equal(messagesFromSelectedSources[0].content, 'Selected preset prompt');
 assert.equal(messagesFromSelectedSources[1].content, 'Selected worldbook entry');
 assert.ok(!messagesFromSelectedSources.some((message) => message.content.includes('Should not be used')));
 
+const messagesWithTaskAfterPresetSource = await buildExternalStatusbarMessages({
+  targetWindow: {},
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Task after preset B',
+  components: [],
+  promptSourceItems: [
+    { key: 'preset-a', scope: 'preset', name: 'Preset A', role: 'system', content: 'Preset A prompt' },
+    { key: 'preset-b', scope: 'preset', name: 'Preset B', role: 'system', content: 'Preset B prompt' },
+    { key: 'preset-c', scope: 'preset', name: 'Preset C', role: 'system', content: 'Preset C prompt' },
+  ],
+  taskPlacement: { enabled: true, afterSourceId: 'preset-b' },
+});
+
+assert.deepEqual(
+  messagesWithTaskAfterPresetSource.map((message) => message.content),
+  ['Preset A prompt', 'Preset B prompt', 'Task after preset B', 'Preset C prompt'],
+);
+
+const messagesWithMissingTaskPlacementSource = await buildExternalStatusbarMessages({
+  targetWindow: {},
+  context,
+  latestMessage: { mes: 'Latest assistant prose' },
+  taskPrompt: 'Task fallback tail',
+  components: [],
+  promptSourceItems: [
+    { key: 'preset-a', scope: 'preset', name: 'Preset A', role: 'system', content: 'Preset A prompt' },
+  ],
+  taskPlacement: { enabled: true, afterSourceId: 'missing-preset' },
+});
+
+assert.deepEqual(
+  messagesWithMissingTaskPlacementSource.map((message) => message.content),
+  ['Preset A prompt', 'Task fallback tail'],
+);
+
 const messagesFromSelectedSourcesWithMissingMarkers = await buildExternalStatusbarMessages({
   targetWindow: {
     TavernHelper: {

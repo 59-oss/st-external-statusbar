@@ -290,10 +290,11 @@ async function collectRuntimeWorldbookInserts(targetWindow, substituteParams) {
 }
 
 function replaceRuntimeMarkerMessages(messages, markerType, role, contents) {
-  const insertMessages = contents.map(textOf).filter(Boolean).map((content) => ({ role, content }));
   let inserted = 0;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     if (messages[index]?.runtimeMarkerType !== markerType) continue;
+    const sourceItemId = messages[index]?.sourceItemId;
+    const insertMessages = contents.map(textOf).filter(Boolean).map((content) => ({ role, content, sourceItemId }));
     const replacements = inserted ? [] : insertMessages;
     messages.splice(index, 1, ...replacements);
     inserted += replacements.length;
@@ -334,12 +335,13 @@ function buildPromptSourceMessages(promptSourceItems, { context, substituteParam
   const messages = [];
 
   for (const item of items) {
+    const sourceItemId = getPromptSourceItemId(item);
     const markerType = textOf(item?.markerType);
     if (isWorldbookSourceItem(item) && hasWorldInfoMarker) continue;
 
     if (isWorldInfoMarker(markerType)) {
       if (item?.locked) {
-        messages.push({ role: normalizeRole(item?.role), content: '', runtimeMarkerType: markerType });
+        messages.push({ role: normalizeRole(item?.role), content: '', runtimeMarkerType: markerType, sourceItemId });
         continue;
       }
       if (worldbookItems.length) {
@@ -347,22 +349,22 @@ function buildPromptSourceMessages(promptSourceItems, { context, substituteParam
         worldbookInserted = true;
         for (const worldbookItem of worldbookItems) {
           const content = textOf(applySubstituteParams(worldbookItem?.content, substituteParams));
-          if (content) messages.push({ role: normalizeRole(worldbookItem?.role), content });
+          if (content) messages.push({ role: normalizeRole(worldbookItem?.role), content, sourceItemId: getPromptSourceItemId(worldbookItem) });
         }
       } else {
-        messages.push({ role: normalizeRole(item?.role), content: '', runtimeMarkerType: markerType });
+        messages.push({ role: normalizeRole(item?.role), content: '', runtimeMarkerType: markerType, sourceItemId });
       }
       continue;
     }
 
     if (markerType === 'chatHistory') {
-      messages.push(...getRecentChatMessages(context?.chat));
+      messages.push(...getRecentChatMessages(context?.chat).map((message) => ({ ...message, sourceItemId })));
       continue;
     }
 
     const runtimeMarkerContent = getRuntimeMarkerContent(markerType, context);
     const content = textOf(applySubstituteParams(runtimeMarkerContent || item?.content, substituteParams));
-    if (content) messages.push({ role: normalizeRole(item?.role), content });
+    if (content) messages.push({ role: normalizeRole(item?.role), content, sourceItemId });
   }
 
   return messages;
@@ -386,7 +388,7 @@ function buildPresetPromptSourceItems(preset, { context, latestMessage, substitu
 }
 
 function getPromptSourceItemId(item) {
-  return textOf(item?.sourceUid || item?.identifier || item?.id || item?.name);
+  return textOf(item?.key || item?.sourceUid || item?.identifier || item?.id || item?.name);
 }
 
 function mergeMissingPresetMarkers(promptSourceItems, preset, options) {
@@ -438,7 +440,25 @@ function buildPluginTaskMessage({ taskPrompt, components, substituteParams }) {
   return task.split(EXTERNAL_COMPONENTS_PLACEHOLDER).join(buildComponentText(components, substituteParams));
 }
 
-export async function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, promptSourceItems, substituteParams }) {
+function insertTaskMessage(messages, taskMessage, taskPlacement) {
+  const afterSourceId = textOf(taskPlacement?.enabled ? taskPlacement?.afterSourceId : '');
+  if (!afterSourceId) {
+    messages.push(taskMessage);
+    return;
+  }
+  const index = messages.findLastIndex((message) => textOf(message?.sourceItemId) === afterSourceId);
+  messages.splice(index >= 0 ? index + 1 : messages.length, 0, taskMessage);
+}
+
+function stripInternalMessageFields(messages) {
+  messages.forEach((message) => {
+    delete message.runtimeMarkerType;
+    delete message.sourceItemId;
+  });
+  return messages;
+}
+
+export async function buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt, components, promptSourceItems, substituteParams, taskPlacement }) {
   const hasSelectedPromptSources = Array.isArray(promptSourceItems) && promptSourceItems.length > 0;
   const preset = getCurrentPreset(targetWindow, context);
   const activePromptSourceItems = hasSelectedPromptSources
@@ -449,9 +469,9 @@ export async function buildExternalStatusbarMessages({ targetWindow, context, la
   const messages = [
     ...promptMessages,
     ...(!hasSelectedPromptSources && !hasChatHistoryMarker ? getRecentChatMessages(context?.chat) : []),
-    { role: 'user', content: buildPluginTaskMessage({ taskPrompt, components, substituteParams }) },
   ];
   messages.promptSourceItems = activePromptSourceItems;
   messages.runtimeInsertions = await applyRuntimeTemplateInsertions(messages, { targetWindow, context, substituteParams });
-  return messages;
+  insertTaskMessage(messages, { role: 'user', content: buildPluginTaskMessage({ taskPrompt, components, substituteParams }) }, taskPlacement);
+  return stripInternalMessageFields(messages);
 }

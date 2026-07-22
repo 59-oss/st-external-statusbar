@@ -14,15 +14,15 @@ import {
   getCurrentPresetNameSafe,
   getPresetNamesSafe,
   normalizeComponent,
-} from './component-sources.js?ver=0.3.61';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.61';
-import { injectStatusbarText } from './inject-utils.js?ver=0.3.61';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.61';
-import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.61';
-import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.61';
+} from './component-sources.js?ver=0.3.62';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.62';
+import { injectStatusbarText } from './inject-utils.js?ver=0.3.62';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.62';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.62';
+import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.62';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.61';
+const EXTENSION_VERSION = '0.3.62';
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -55,6 +55,8 @@ const DEFAULT_SETTINGS = {
   lastGenerated: '',
   lastPromptLog: '',
   compressSystemMessages: false,
+  taskPlacementEnabled: false,
+  taskPlacementAfterSourceId: '',
   ballX: 16,
   ballY: 16,
   ballVisible: false,
@@ -95,6 +97,8 @@ function loadSettings() {
   if (!settings.promptSelections || typeof settings.promptSelections !== 'object') settings.promptSelections = {};
   if (!settings.importSelections || typeof settings.importSelections !== 'object') settings.importSelections = {};
   if (![SOURCE_MODE_PROMPT, SOURCE_MODE_IMPORT].includes(settings.sourceMode)) settings.sourceMode = SOURCE_MODE_PROMPT;
+  settings.taskPlacementEnabled = Boolean(settings.taskPlacementEnabled);
+  settings.taskPlacementAfterSourceId = textOf(settings.taskPlacementAfterSourceId);
   settings.components = settings.components.map((item) => normalizeComponent(item, targetWindow, getContext()));
 }
 
@@ -124,7 +128,16 @@ async function buildMessages(latestMessage) {
   const context = getContext();
   const components = getEnabledComponents();
   const promptSourceItems = await ensurePromptSourceItemsForGeneration();
-  const messages = await buildExternalStatusbarMessages({ targetWindow, context, latestMessage, taskPrompt: settings.taskPrompt, components, promptSourceItems, substituteParams: context.substituteParams });
+  const messages = await buildExternalStatusbarMessages({
+    targetWindow,
+    context,
+    latestMessage,
+    taskPrompt: settings.taskPrompt,
+    components,
+    promptSourceItems,
+    substituteParams: context.substituteParams,
+    taskPlacement: { enabled: settings.taskPlacementEnabled, afterSourceId: settings.taskPlacementAfterSourceId },
+  });
   lastRuntimeDiagnostics = createRuntimePromptDiagnostics({ context, promptSourceItems: messages.promptSourceItems || promptSourceItems, runtimeInsertions: messages.runtimeInsertions });
   return messages;
 }
@@ -515,6 +528,30 @@ function renderSourceModeUi() {
   $t('#st-esg-import-target-scope').closest('label').toggle(settings.sourceMode === SOURCE_MODE_IMPORT);
 }
 
+function getPresetTaskPlacementItems() {
+  return importGroups
+    .filter((group) => group?.scope !== SOURCE_WORLDBOOK && group.loaded && Array.isArray(group.items))
+    .flatMap((group) => group.items
+      .filter((item) => item?.key && (textOf(item.content) || textOf(item.markerType)))
+      .map((item) => ({ id: item.key, label: `${group.source || group.group} / ${item.name}` })));
+}
+
+function renderTaskPlacementOptions() {
+  const enabled = Boolean(settings.taskPlacementEnabled);
+  const row = $t('#st-esg-task-placement-row');
+  const select = $t('#st-esg-task-placement-after');
+  const items = getPresetTaskPlacementItems();
+  row.toggle(enabled);
+  select.html(items.length
+    ? items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.label)}</option>`).join('')
+    : '<option value="">请先在“预设/世界书”页同步当前预设</option>');
+  if (items.some((item) => item.id === settings.taskPlacementAfterSourceId)) {
+    select.val(settings.taskPlacementAfterSourceId);
+  } else {
+    select.val('');
+  }
+}
+
 function captureImportViewState() {
   const box = $t('#st-esg-worldbook-candidates');
   return {
@@ -582,6 +619,7 @@ async function scanImportCandidates() {
   activeWorldbookGroupIndex = null;
   importCandidates = importGroups.flatMap((group) => group.items || []);
   renderImportCandidates();
+  renderTaskPlacementOptions();
   setStatus(settings.sourceMode === SOURCE_MODE_PROMPT ? `已同步 ${syncedCount} 个已加载条目的酒馆勾选状态。世界书会在进入详情页时同步。` : `已列出 ${importGroups.length} 个来源。世界书会在进入详情页时加载。`);
 }
 
@@ -615,6 +653,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
   if (!importGroups.length) {
     if (renderPreset) presetBox.html('<div class="st-esg-empty st-esg-empty-small">还没有预设条目。选择预设后点击“同步来源”。</div>');
     if (renderWorldbook) worldbookBox.html('<div class="st-esg-empty st-esg-empty-small">还没有世界书来源。点击“同步来源”后会按分类列出。</div>');
+    renderTaskPlacementOptions();
     return;
   }
   const viewState = captureImportViewState();
@@ -653,6 +692,7 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     : (worldbookGroups.length ? `<details class="st-esg-import-scope" open><summary class="st-esg-import-scope-summary"><span>世界书</span><em>${worldbookGroups.length} 本来源</em></summary><div class="st-esg-import-scope-body">${[...worldbookCategories.values()].filter((category) => category.groups.length).map((category) => `<details class="st-esg-import-category" open><summary class="st-esg-import-category-summary"><span>${escapeHtml(category.categoryLabel)}</span><em>${category.groups.length} 本</em></summary><div class="st-esg-import-category-body">${category.groups.map(renderWorldbookRow).join('')}</div></details>`).join('')}</div></details>` : '');
   if (renderPreset) presetBox.html(presetGroups.length ? presetGroups.map(renderGroup).join('') : '<div class="st-esg-empty st-esg-empty-small">当前预设没有可导入条目。</div>');
   if (renderWorldbook) worldbookBox.html(worldbookSection || '<div class="st-esg-empty st-esg-empty-small">没有世界书来源。</div>');
+  renderTaskPlacementOptions();
   restoreImportViewState(viewState);
   if (renderPreset) $t('.st-esg-import-group').on('toggle', function () {
     const groupIndex = Number($(this).data('group-index'));
@@ -731,7 +771,7 @@ function renderPluginPanel() {
       <div class="st-esg-panel-body">
         <nav class="st-esg-tabs" aria-label="外置状态栏生成器分页"><button class="st-esg-tab" type="button" data-tab="workspace"><i class="fa-solid fa-sparkles"></i><span>生成结果</span></button><button class="st-esg-tab" type="button" data-tab="runtime"><i class="fa-solid fa-sliders"></i><span>运行设置</span></button><button class="st-esg-tab" type="button" data-tab="api"><i class="fa-solid fa-plug"></i><span>API 设置</span></button><button class="st-esg-tab" type="button" data-tab="sources"><i class="fa-solid fa-book-open"></i><span>预设/世界书</span></button><button class="st-esg-tab" type="button" data-tab="components"><i class="fa-solid fa-layer-group"></i><span>组件库</span></button><button class="st-esg-tab" type="button" data-tab="debug"><i class="fa-solid fa-bug"></i><span>提示词日志</span></button><button class="st-esg-tab" type="button" data-tab="output"><i class="fa-solid fa-code"></i><span>输出注入</span></button></nav>
         <section class="st-esg-tab-panel" data-tab-panel="workspace"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">生成内容</div><div class="st-esg-card-desc">这里是状态栏生成结果。你可以先检查，再注入最新回复。</div></div></div><textarea id="st-esg-preview" class="text_pole textarea_compact st-esg-textarea st-esg-preview" rows="11" placeholder="生成后的状态栏会出现在这里。"></textarea></div><div class="st-esg-workflow"><div class="st-esg-step"><b>1</b><span>读取最新助手回复</span></div><div class="st-esg-step"><b>2</b><span>按组件与任务生成</span></div><div class="st-esg-step"><b>3</b><span>预览后写回正文末尾</span></div></div></section>
-        <section class="st-esg-tab-panel" data-tab-panel="runtime"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">运行模式</div><div class="st-esg-card-desc">控制插件是否监听正文生成，以及生成后是否自动注入。</div></div><label class="st-esg-switch"><input id="st-esg-enabled" type="checkbox" /><span></span><em>启用</em></label></div><select id="st-esg-mode" class="text_pole st-esg-select"><option value="autoInject">自动生成，并自动注入最新回复</option><option value="autoReview">自动生成，但手动确认注入</option><option value="manual">手动点击生成，手动注入</option></select></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">生成任务指令</div><div class="st-esg-card-desc">编辑最终发送给模型的任务指令；写 {{external_components}} 的位置会插入组件库内容，不写则不发送组件。</div></div></div><textarea id="st-esg-task" class="text_pole textarea_compact st-esg-textarea" rows="7"></textarea><div class="st-esg-actions-row"><div id="st-esg-reset-task" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-rotate-left"></i><span>恢复默认提示词</span></div></div></div></section>
+        <section class="st-esg-tab-panel" data-tab-panel="runtime"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">运行模式</div><div class="st-esg-card-desc">控制插件是否监听正文生成，以及生成后是否自动注入。</div></div><label class="st-esg-switch"><input id="st-esg-enabled" type="checkbox" /><span></span><em>启用</em></label></div><select id="st-esg-mode" class="text_pole st-esg-select"><option value="autoInject">自动生成，并自动注入最新回复</option><option value="autoReview">自动生成，但手动确认注入</option><option value="manual">手动点击生成，手动注入</option></select></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">生成任务指令</div><div class="st-esg-card-desc">编辑最终发送给模型的任务指令；写 {{external_components}} 的位置会插入组件库内容，不写则不发送组件。</div></div></div><textarea id="st-esg-task" class="text_pole textarea_compact st-esg-textarea" rows="7"></textarea><label class="st-esg-checkbox st-esg-log-option"><input id="st-esg-task-placement-enabled" type="checkbox" /><span>自定义任务指令插入位置</span><em>开启后插入到指定预设条目之后；关闭时仍追加到末尾。</em></label><div id="st-esg-task-placement-row" class="st-esg-grid"><label>插入到这条预设之后<select id="st-esg-task-placement-after" class="text_pole"></select></label></div><div class="st-esg-actions-row"><div id="st-esg-reset-task" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-rotate-left"></i><span>恢复默认提示词</span></div></div></div></section>
         <section class="st-esg-tab-panel" data-tab-panel="api"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">独立 API</div><div class="st-esg-card-desc">支持 OpenAI-compatible /v1/chat/completions。留空时不会生成内容。</div></div></div><div class="st-esg-grid"><label>API 地址<input id="st-esg-api-url" class="text_pole" type="text" placeholder="例如 https://api.openai.com/v1" /></label><label>模型名称<input id="st-esg-api-model" class="text_pole" type="text" list="st-esg-model-options" placeholder="例如 gpt-4o-mini / deepseek-chat" /><datalist id="st-esg-model-options"></datalist></label><label>最大输出<input id="st-esg-max-tokens" class="text_pole" type="number" min="1" step="1" /></label><label>温度<input id="st-esg-temperature" class="text_pole" type="number" min="0" max="2" step="0.1" /></label></div><label class="st-esg-secret-label">API Key<input id="st-esg-api-key" class="text_pole" type="password" placeholder="可选。多数独立 API 需要填写。" /></label><div class="st-esg-actions-row"><div id="st-esg-fetch-models" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-cloud-arrow-down"></i><span>拉取模型</span></div></div></div></section>
         <section class="st-esg-tab-panel" data-tab-panel="sources"><div class="st-esg-card st-esg-import-tools"><div class="st-esg-card-head"><div><div id="st-esg-source-mode-title" class="st-esg-card-title">提示词模式</div><div id="st-esg-source-mode-desc" class="st-esg-card-desc">当前勾选会作为外置生成时启用的来源，不会导入组件库。</div></div></div><div class="st-esg-grid"><label>来源模式<select id="st-esg-source-mode" class="text_pole"><option value="prompt">提示词模式</option><option value="import">导入组件库模式</option></select></label><label>导入到<select id="st-esg-import-target-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div><div class="st-esg-actions-row"><div id="st-esg-scan-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-list-check"></i><span>同步来源</span></div><div id="st-esg-import-components" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-file-import"></i><span>已自动保存勾选</span></div></div></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">预设</div><div class="st-esg-card-desc">用选择框切换预设；下方只显示当前选择的预设条目。</div></div></div><div class="st-esg-grid"><label>选择预设<select id="st-esg-source-preset" class="text_pole"></select></label></div><div id="st-esg-preset-candidates" class="st-esg-import-list"><div class="st-esg-empty st-esg-empty-small">还没有预设条目。选择预设后点击“同步来源”。</div></div></div><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">世界书</div><div class="st-esg-card-desc">这里是独立的世界书列表；点进某本世界书后只替换这张卡片。</div></div></div><div id="st-esg-worldbook-candidates" class="st-esg-import-list"><div class="st-esg-empty st-esg-empty-small">还没有世界书来源。点击“同步来源”后会按分类列出。</div></div></div></section>
         <section class="st-esg-tab-panel" data-tab-panel="components"><div class="st-esg-card"><div class="st-esg-card-head"><div><div class="st-esg-card-title">手动添加组件</div><div class="st-esg-card-desc">组件库只管理最终会发送的组件；从预设和世界书导入请去“预设/世界书”页。</div></div></div><div class="st-esg-grid"><label>组件名<input id="st-esg-component-name" class="text_pole" type="text" placeholder="例如：人物状态栏" /></label><label>归属<select id="st-esg-component-scope" class="text_pole"><option>全局</option><option>预设</option><option>角色</option></select></label></div><textarea id="st-esg-component-content" class="text_pole textarea_compact st-esg-textarea" rows="5" placeholder="在这里粘贴状态栏格式、要求或组件提示词。"></textarea><div class="st-esg-actions-row"><div id="st-esg-add-component" class="menu_button menu_button_icon st-esg-secondary-action"><i class="fa-solid fa-plus"></i><span>添加到组件库</span></div></div></div><div id="st-esg-component-list" class="st-esg-component-list"></div></section>
@@ -751,6 +791,7 @@ function bindPanelEvents() {
   $t('#st-esg-ball-visible').prop('checked', settings.ballVisible);
   $t('#st-esg-mode').val(settings.mode);
   $t('#st-esg-task').val(settings.taskPrompt);
+  $t('#st-esg-task-placement-enabled').prop('checked', settings.taskPlacementEnabled);
   $t('#st-esg-preview').val(settings.lastGenerated);
   $t('#st-esg-compress-system').prop('checked', settings.compressSystemMessages);
   $t('#st-esg-api-url').val(settings.apiUrl);
@@ -763,6 +804,7 @@ function bindPanelEvents() {
   $t('#st-esg-cleanup-tags').val(settings.cleanupTags);
   renderSourceModeUi();
   renderSourcePresetSelect();
+  renderTaskPlacementOptions();
   renderComponentList(); renderPromptLog(); switchTab(settings.activeTab || 'workspace');
   $t('#st-esg-close').on('click', () => togglePanel(false));
   $t('.st-esg-tab').on('click', function () { switchTab(String($(this).data('tab'))); });
@@ -792,6 +834,15 @@ function bindPanelEvents() {
   $t('#st-esg-ball-visible').on('change', function () { settings.ballVisible = Boolean($(this).prop('checked')); saveSettings(); renderFloatingBall(); });
   $t('#st-esg-mode').on('change', function () { settings.mode = String($(this).val()); saveSettings(); });
   $t('#st-esg-task').on('input', function () { settings.taskPrompt = String($(this).val()); saveSettings(); });
+  $t('#st-esg-task-placement-enabled').on('change', function () {
+    settings.taskPlacementEnabled = Boolean($(this).prop('checked'));
+    saveSettings();
+    renderTaskPlacementOptions();
+  });
+  $t('#st-esg-task-placement-after').on('change', function () {
+    settings.taskPlacementAfterSourceId = String($(this).val() || '');
+    saveSettings();
+  });
   $t('#st-esg-reset-task').on('click', function () {
     settings.taskPrompt = DEFAULT_SETTINGS.taskPrompt;
     $t('#st-esg-task').val(settings.taskPrompt);
