@@ -270,8 +270,7 @@
 .st-esg-import-scope { border: 1px solid #cfcfcf; border-radius: 18px; background: #fff; overflow: hidden; }
 .st-esg-import-scope-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 14px; cursor: pointer; color: #050505; font-weight: 800; background: #f4f4f4; }
 .st-esg-import-scope-summary em,
-.st-esg-import-category-summary em,
-.st-esg-import-item em { color: #666; font-style: normal; font-size: 12px; font-weight: 500; }
+.st-esg-import-category-summary em { color: #666; font-style: normal; font-size: 12px; font-weight: 500; }
 .st-esg-import-scope-body { display: grid; gap: 10px; padding: 10px; }
 .st-esg-import-category { border: 1px solid #dcdcdc; border-radius: 16px; background: #fafafa; overflow: hidden; }
 .st-esg-import-category-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; cursor: pointer; color: #111; font-weight: 760; background: #efefef; }
@@ -296,12 +295,21 @@
 .st-esg-component-item-head em { max-width: 120px; overflow: hidden; color: #666; font-style: normal; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .st-esg-import-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 42px; padding: 10px 12px; overflow: hidden; }
 details.st-esg-import-item { display: block; padding: 0; overflow: visible; }
-details.st-esg-import-item > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 42px; padding: 10px 12px; cursor: pointer; list-style-position: inside; }
+details.st-esg-import-item > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 42px; padding: 10px 12px; cursor: pointer; list-style-position: inside; }
 details.st-esg-import-item[open] > summary { border-bottom: 1px solid #d6d6d6; }
 .st-esg-source-detail { display: grid; gap: 8px; padding: 10px 12px 12px; background: #fafafa; }
 .st-esg-source-detail .st-esg-source-content { min-height: 150px; resize: vertical; }
 .st-esg-import-item .st-esg-checkbox { min-width: 0; flex: 1; }
 .st-esg-import-item .st-esg-checkbox span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-esg-import-label { display: inline-flex; align-items: center; min-width: 0; gap: 9px; color: #333; font-weight: 500; }
+.st-esg-import-label span { overflow: hidden; color: #050505; text-overflow: ellipsis; white-space: nowrap; }
+.st-esg-source-expand { display: inline-flex !important; align-items: center; justify-content: center; width: 32px; min-width: 32px; height: 32px; padding: 0 !important; border-radius: 999px !important; }
+.st-esg-source-expand i { transition: transform 140ms ease; }
+details.st-esg-import-item[open] .st-esg-source-expand i { transform: rotate(180deg); }
+.st-esg-source-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.st-esg-source-actions .menu_button { min-height: 32px; padding-inline: 14px !important; border-radius: 999px !important; }
+.st-esg-source-confirm { color: #fff !important; border-color: #000 !important; background: #000 !important; }
+.st-esg-source-confirm:hover { color: #fff !important; background: #222 !important; }
 .st-esg-import-meta { color: #666; font-size: 12px; }
 .st-esg-component-item pre,
 .st-esg-import-item pre { grid-column: 1 / -1; margin: 0; padding: 11px; max-height: 170px; overflow: auto; border: 1px solid #d6d6d6; border-radius: 10px; color: #000; white-space: pre-wrap; background: #fff; font-family: var(--monoFontFamily, ui-monospace, SFMono-Regular, Consolas, monospace); font-size: 12px; line-height: 1.52; }

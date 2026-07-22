@@ -14,15 +14,15 @@ import {
   getCurrentPresetNameSafe,
   getPresetNamesSafe,
   normalizeComponent,
-} from './component-sources.js?ver=0.3.64';
-import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.64';
-import { injectStatusbarText } from './inject-utils.js?ver=0.3.64';
-import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.64';
-import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.64';
-import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.64';
+} from './component-sources.js?ver=0.3.65';
+import { extractModelIds, normalizeChatCompletionsUrl, normalizeModelsUrl } from './api-utils.js?ver=0.3.65';
+import { injectStatusbarText } from './inject-utils.js?ver=0.3.65';
+import { buildExternalStatusbarMessages, createRuntimePromptDiagnostics } from './prompt-builder.js?ver=0.3.65';
+import { createPromptLog, createPromptLogViewModel, mergeConsecutiveSystemMessages } from './prompt-log.js?ver=0.3.65';
+import { collectSelectedPromptSourceItems, syncPromptSelectionsFromGroups } from './source-selection.js?ver=0.3.65';
 
 const EXTENSION_ID = 'st-external-statusbar';
-const EXTENSION_VERSION = '0.3.64';
+const EXTENSION_VERSION = '0.3.65';
 const SOURCE_MODE_PROMPT = 'prompt';
 const SOURCE_MODE_IMPORT = 'import';
 const WORLDBOOK_CATEGORY_ORDER = [
@@ -516,8 +516,8 @@ async function ensurePromptSourceItemsForGeneration() {
 
 function getSourceModeInfo() {
   return settings.sourceMode === SOURCE_MODE_IMPORT
-    ? { title: '导入组件库模式', desc: '当前勾选只用于导入组件库，不影响外置生成提示词。', checkedText: '准备导入', uncheckedText: '不导入', actionText: '导入勾选条目' }
-    : { title: '提示词模式', desc: '点击“同步勾选状态”会用酒馆当前预设/世界书启用状态覆盖这里的勾选。', checkedText: '生成启用', uncheckedText: '生成停用', actionText: '已自动保存勾选' };
+    ? { title: '导入组件库模式', desc: '当前勾选只用于导入组件库，不影响外置生成提示词。', actionText: '导入勾选条目' }
+    : { title: '提示词模式', desc: '点击“同步勾选状态”会用酒馆当前预设/世界书启用状态覆盖这里的勾选。', actionText: '已自动保存勾选' };
 }
 
 function renderSourceModeUi() {
@@ -560,9 +560,11 @@ function setSourceContentOverride(item, value) {
 function renderSourceContentEditor(item, groupIndex, itemIndex) {
   const value = getSourceContentValue(item);
   if (item?.markerType && !value) {
-    return '<div class="st-esg-empty st-esg-empty-small">原生占位符内容会在生成时从酒馆运行时插入。</div>';
+    return '<div class="st-esg-empty st-esg-empty-small">运行时插入，无可编辑内容。</div>';
   }
-  return `<textarea class="text_pole textarea_compact st-esg-textarea st-esg-source-content" rows="7" data-group-index="${groupIndex}" data-item-index="${itemIndex}" ${item?.locked ? 'readonly' : ''}>${escapeHtml(value)}</textarea>`;
+  const textarea = `<textarea class="text_pole textarea_compact st-esg-textarea st-esg-source-content" rows="7" data-group-index="${groupIndex}" data-item-index="${itemIndex}" ${item?.locked ? 'readonly' : ''}>${escapeHtml(value)}</textarea>`;
+  if (item?.locked) return textarea;
+  return `${textarea}<div class="st-esg-source-actions"><button class="menu_button st-esg-source-cancel" type="button" data-group-index="${groupIndex}" data-item-index="${itemIndex}">取消</button><button class="menu_button st-esg-source-confirm" type="button" data-group-index="${groupIndex}" data-item-index="${itemIndex}">确认</button></div>`;
 }
 
 function renderTaskPlacementOptions() {
@@ -698,7 +700,6 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
   });
   const countItems = (groups) => groups.reduce((sum, group) => sum + (group.loaded ? group.items.length : 0), 0);
   const groupBody = (group) => {
-    const modeInfo = getSourceModeInfo();
     if (group.loading) return '<div class="st-esg-empty st-esg-empty-small">正在加载这本世界书...</div>';
     if (group.error) return `<div class="st-esg-empty st-esg-empty-small">${escapeHtml(group.error)}</div>`;
     if (!group.loaded) return '<div class="st-esg-empty st-esg-empty-small">展开后才加载条目，避免刷新卡顿。</div>';
@@ -706,9 +707,10 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     return group.items.map((item, itemIndex) => {
       const checked = getSourceSelection(item);
       const meta = [item.role ? `role: ${item.role}` : '', item.scope || '', item.sourceUid ? `id: ${item.sourceUid}` : ''].filter(Boolean).join(' | ');
-      const summary = item.locked
-        ? `<label class="st-esg-checkbox"><i class="fa-solid fa-lock"></i><span>${escapeHtml(item.name)}</span></label><em>原生占位符</em>`
-        : `<label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" ${checked ? 'checked' : ''} /><span>${escapeHtml(item.name)}</span></label><em>${checked ? modeInfo.checkedText : modeInfo.uncheckedText}</em>`;
+      const summaryLabel = item.locked
+        ? `<span class="st-esg-import-label"><i class="fa-solid fa-lock"></i><span>${escapeHtml(item.name)}</span></span>`
+        : `<label class="st-esg-checkbox"><input class="st-esg-import-check" type="checkbox" ${checked ? 'checked' : ''} /><span>${escapeHtml(item.name)}</span></label>`;
+      const summary = `${summaryLabel}<button class="menu_button st-esg-source-expand" type="button" title="展开内容"><i class="fa-solid fa-chevron-down"></i></button>`;
       return `<details class="st-esg-import-item ${item.locked ? 'st-esg-import-item-locked' : ''}" data-group-index="${group.groupIndex}" data-item-index="${itemIndex}"><summary>${summary}</summary><div class="st-esg-source-detail"><div class="st-esg-card-desc">${escapeHtml(meta)}</div>${renderSourceContentEditor(item, group.groupIndex, itemIndex)}</div></details>`;
     }).join('');
   };
@@ -740,14 +742,37 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     const group = importGroups[Number(row.data('group-index'))];
     const item = group?.items?.[Number(row.data('item-index'))];
     setSourceSelection(item, Boolean($(this).prop('checked')));
-    $(this).closest('.st-esg-import-item').find('em').text($(this).prop('checked') ? getSourceModeInfo().checkedText : getSourceModeInfo().uncheckedText);
+  });
+  $t('.st-esg-source-expand').off('.stEsgSourceExpand');
+  $t('.st-esg-source-expand').on('click.stEsgSourceExpand', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const details = $(this).closest('.st-esg-import-item').get(0);
+    if (details) details.open = !details.open;
   });
   $t('.st-esg-source-content').off('.stEsgSourceContent');
   $t('.st-esg-source-content').on('click.stEsgSourceContent', (event) => event.stopPropagation());
-  $t('.st-esg-source-content').on('input.stEsgSourceContent', function () {
+  $t('.st-esg-source-confirm').off('.stEsgSourceContent');
+  $t('.st-esg-source-confirm').on('click.stEsgSourceContent', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
     const group = importGroups[Number($(this).data('group-index'))];
     const item = group?.items?.[Number($(this).data('item-index'))];
-    setSourceContentOverride(item, $(this).val());
+    const detail = $(this).closest('.st-esg-source-detail');
+    const textarea = detail.find('.st-esg-source-content');
+    setSourceContentOverride(item, textarea.val());
+    textarea.val(getSourceContentValue(item));
+    setStatus('已保存条目内容。');
+  });
+  $t('.st-esg-source-cancel').off('.stEsgSourceContent');
+  $t('.st-esg-source-cancel').on('click.stEsgSourceContent', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const group = importGroups[Number($(this).data('group-index'))];
+    const item = group?.items?.[Number($(this).data('item-index'))];
+    const detail = $(this).closest('.st-esg-source-detail');
+    detail.find('.st-esg-source-content').val(getSourceContentValue(item));
+    setStatus('已取消编辑。');
   });
   if (renderPreset) $t('.st-esg-import-group-toggle').on('click', function (event) {
     event.preventDefault();
@@ -756,7 +781,6 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     const shouldCheck = checks.toArray().some((item) => !$(item).prop('checked'));
     checks.prop('checked', shouldCheck);
     syncSelectionForChecks(checks);
-    checks.closest('.st-esg-import-item').find('em').text(shouldCheck ? getSourceModeInfo().checkedText : getSourceModeInfo().uncheckedText);
     $(this).text(shouldCheck ? '取消本组' : '本组全选');
   });
   if (renderWorldbook) $t('.st-esg-import-detail-toggle').on('click', function (event) {
@@ -766,7 +790,6 @@ function renderImportCandidates({ renderPreset = true, renderWorldbook = true } 
     const shouldCheck = checks.toArray().some((item) => !$(item).prop('checked'));
     checks.prop('checked', shouldCheck);
     syncSelectionForChecks(checks);
-    checks.closest('.st-esg-import-item').find('em').text(shouldCheck ? getSourceModeInfo().checkedText : getSourceModeInfo().uncheckedText);
     $(this).text(shouldCheck ? '取消本书' : '本书全选');
   });
 }
